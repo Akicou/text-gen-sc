@@ -1,0 +1,109 @@
+/* Extract button lives inside .info, only visible on question hover */
+.mqe-extract-btn {
+  display: none;
+  margin-left: 8px;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+  color: #fff;
+  background: #2563eb;
+  border: 1px solid #1d4ed8;
+  border-radius: 6px;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  line-height: 1.2;
+  vertical-align: middle;
+  transition: background 0.15s ease;
+}
+div.que:hover > .info .mqe-extract-btn { display: inline-block; }
+.mqe-extract-btn:hover  { background: #1d4ed8; }
+.mqe-extract-btn:active { background: #1e40af; }
+.mqe-extract-btn:focus  { outline: 2px solid #93c5fd; outline-offset: 1px; }
+
+/* Modal overlay */
+.mqe-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 2147483646;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+}
+
+.mqe-modal-box {
+  background: #ffffff;
+  color: #111827;
+  width: min(720px, 92vw);
+  max-height: 85vh;
+  border-radius: 10px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.mqe-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #f3f4f6;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.mqe-modal-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.mqe-modal-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.mqe-btn {
+  font-size: 12px;
+  font-family: inherit;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  line-height: 1.2;
+}
+.mqe-btn.mqe-copy {
+  background: #2563eb; color: #fff; border-color: #1d4ed8;
+}
+.mqe-btn.mqe-copy:hover { background: #1d4ed8; }
+.mqe-btn.mqe-close {
+  background: #e5e7eb; color: #111827; border-color: #d1d5db;
+  min-width: 30px;
+}
+.mqe-btn.mqe-close:hover { background: #d1d5db; }
+
+.mqe-modal-text {
+  flex: 1 1 auto;
+  min-height: 240px;
+  margin: 0;
+  padding: 12px 14px;
+  border: none;
+  outline: none;
+  resize: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #111827;
+  background: #ffffff;
+  white-space: pre;
+  overflow: auto;
+}
+
+.mqe-modal-footer {
+  padding: 8px 14px;
+  border-top: 1px solid #e5e7eb;
+  background: #f9fafb;
+  min-height: 28px;
+  font-size: 12px;
+  color: #047857;
+}

@@ -1,0 +1,27 @@
+{
+  "manifest_version": 2,
+  "name": "Moodle Question Extractor",
+  "version": "1.0.0",
+  "description": "Adds an Extract button to Moodle quiz questions (kprime, multichoice, gapselect, match) and shows their text + options in a copyable popup.",
+  "icons": {
+    "48": "icons/icon48.png",
+    "96": "icons/icon96.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*/*"
+      ],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "moodle-question-extractor@local",
+      "strict_min_version": "91.0"
+    }
+  }
+}
