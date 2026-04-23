@@ -179,10 +179,18 @@ def query_ai(prompt):
         base_url=provider["base_url"],
     )
     context = get_context()
+    system_prompt = (
+        "You are a helpful assistant. "
+        "Respond in plain text only. "
+        "Do not use markdown bold (** or __), italic (* or _), headers (#), or any other markdown formatting. "
+        "Do not use emojis or special unicode symbols. "
+        "Keep responses clean, concise, and plainly formatted."
+    )
     try:
         response = client.chat.completions.create(
             model=selected_model,
             messages=[
+                {"role": "system", "content": system_prompt},
                 {
                     "role": "user",
                     "content": prompt
@@ -192,7 +200,7 @@ def query_ai(prompt):
             {context}
             </context>
             """,
-                }
+                },
             ],
         )
         return response.choices[0].message.content.strip()
