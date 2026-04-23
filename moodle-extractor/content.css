@@ -82,6 +82,22 @@ div.que:hover > .info .mqe-extract-btn { display: inline-block; }
 }
 .mqe-btn.mqe-close:hover { background: #d1d5db; }
 
+/* AI Solve button */
+.mqe-btn.mqe-solve {
+  background: #059669; color: #fff; border-color: #047857;
+}
+.mqe-btn.mqe-solve:hover { background: #047857; }
+.mqe-btn.mqe-solve:disabled {
+  background: #9ca3af; border-color: #9ca3af;
+  cursor: not-allowed; opacity: 0.7;
+}
+
+/* Auto-fill button */
+.mqe-btn.mqe-fill {
+  background: #d97706; color: #fff; border-color: #b45309;
+}
+.mqe-btn.mqe-fill:hover { background: #b45309; }
+
 .mqe-modal-text {
   flex: 1 1 auto;
   min-height: 240px;

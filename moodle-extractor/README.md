@@ -43,6 +43,39 @@ above pointing at the unzipped `manifest.json`.
 - Click **Kopieren** (or just press `Ctrl+C` — the text is pre-selected).
 - Press `Esc` or click outside the modal to close it.
 
+## AI Solve
+
+The popup also has an **AI Loesen** button that sends the extracted question
+to a local Python server, which queries an AI with context files and returns
+a structured answer.
+
+### Setup
+
+1. Make sure you have Python with `openai` installed (`pip install openai`).
+2. Create a `.env` file in the project root with your OpenRouter API key:
+   ```
+   OPENROUTER_API_KEY=sk-or-...
+   ```
+3. Place context files in the `./data/` directory (e.g. `data.context1.txt`).
+4. Start the server:
+   ```
+   python server.py
+   ```
+5. The server runs on `http://localhost:5923`.
+
+### Configuration
+
+The server uses these defaults (edit `server.py` to change):
+
+| Setting | Default |
+|---------|---------|
+| Provider | `openrouter` |
+| Model | `openai/gpt-oss-120b` |
+| Port | `5923` |
+
+For local models, change `DEFAULT_PROVIDER` to `ollama` or `lmstudio`.
+Local models use a JSON fallback instead of structured outputs.
+
 ## Files
 
 - `manifest.json` — extension manifest (MV2, Firefox)

@@ -11,4 +11,8 @@ if (-not (Test-Path $VenvDir)) {
     & "$VenvDir\Scripts\Activate.ps1"
 }
 
+# Start the AI solve server in the background
+Start-Process -NoNewWindow -FilePath "python" -ArgumentList "server.py"
+Write-Host "AI server started on http://localhost:5923"
+
 python main.py

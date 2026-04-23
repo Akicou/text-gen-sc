@@ -100,6 +100,17 @@ OPENROUTER_MODELS = [
 ]
 
 
+def save_config():
+    """Save current provider and model to a shared config file for server.py."""
+    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".server_config.json")
+    config = {"provider": selected_provider, "model": selected_model}
+    try:
+        with open(config_path, "w") as f:
+            json.dump(config, f)
+    except Exception:
+        pass
+
+
 def select_provider():
     """Select the AI provider."""
     global selected_provider, api_key
@@ -154,6 +165,7 @@ def select_model():
             if 0 <= choice < len(models):
                 selected_model = models[choice]
                 print(f"Selected model: {selected_model}")
+                save_config()
                 break
             else:
                 print("Invalid choice.")
@@ -353,6 +365,7 @@ def query_ai_vision(image_base64, prompt):
                     ],
                 },
             ],
+            reasoning_effort="medium",
         )
         return response.choices[0].message.content.strip()
     except Exception as e:

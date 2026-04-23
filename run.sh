@@ -14,4 +14,8 @@ else
     source "$VENV_DIR/bin/activate"
 fi
 
+# Start the AI solve server in the background
+python server.py &
+echo "AI server started on http://localhost:5923"
+
 python main.py

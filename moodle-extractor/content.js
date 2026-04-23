@@ -288,6 +288,150 @@
     return L.join('\n');
   }
 
+  // ---------- AI answer formatting ----------
+
+  function formatAnswer(questionData, aiResult) {
+    const L = [];
+    L.push('');
+    L.push('=== AI-ANTWORT ===');
+    L.push('');
+
+    const type = questionData.type;
+
+    if (type === 'K-Prime' && aiResult.answers) {
+      const headers = questionData.headers || [];
+      L.push(`(${headers.join(' / ')})`);
+      L.push('');
+      aiResult.answers.forEach((a, i) => {
+        L.push(`${i + 1}. ${a.statement}`);
+        L.push(`   Antwort: ${a.answer}`);
+        L.push(`   Erklaerung: ${a.explanation}`);
+        L.push('');
+      });
+    } else if (type === 'Multiple Choice' && aiResult.correctAnswer !== undefined) {
+      const correctText = questionData.options[aiResult.correctAnswer - 1]?.text || '';
+      L.push(`Richtige Antwort: ${aiResult.correctAnswer}. ${correctText}`);
+      L.push(`Erklaerung: ${aiResult.explanation}`);
+      L.push('');
+      if (aiResult.alternatives && aiResult.alternatives.length > 0) {
+        L.push('Warum die anderen falsch sind:');
+        aiResult.alternatives.forEach((alt) => {
+          L.push(`  ${alt.index}. ${alt.reason}`);
+        });
+      }
+    } else if (type.startsWith('Lückentext') && aiResult.gaps) {
+      aiResult.gaps.forEach((g) => {
+        L.push(`Luecke ${g.gapNumber}: ${g.answer}`);
+        L.push(`  Erklaerung: ${g.explanation}`);
+      });
+    } else if (type === 'Zuordnung (Match)' && aiResult.matches) {
+      aiResult.matches.forEach((m, i) => {
+        L.push(`${i + 1}. ${m.statement} -> ${m.answer}`);
+        L.push(`   Erklaerung: ${m.explanation}`);
+      });
+    } else {
+      L.push(JSON.stringify(aiResult, null, 2));
+    }
+
+    return L.join('\n');
+  }
+
+  // ---------- Auto-fill ----------
+
+  function clickRadio(radio) {
+    radio.checked = true;
+    radio.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    radio.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function setSelect(sel, opt) {
+    opt.selected = true;
+    sel.selectedIndex = Array.from(sel.options).indexOf(opt);
+    sel.value = opt.value;
+    console.log('[MQE] setSelect — value:', sel.value, 'selectedIndex:', sel.selectedIndex);
+    ['change', 'input', 'click'].forEach((evt) => {
+      sel.dispatchEvent(new Event(evt, { bubbles: true }));
+    });
+    const wrapper = sel.closest('.control') || sel.closest('span');
+    if (wrapper) {
+      wrapper.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }
+
+  function textMatches(haystack, needle) {
+    const a = clean(haystack).toLowerCase();
+    const b = needle.toLowerCase().trim();
+    if (!a || !b) return false;
+    return a === b || a.includes(b) || b.includes(a);
+  }
+
+  function autoFill(qEl, questionData, aiResult) {
+    const type = questionData.type;
+    let filled = 0;
+    console.log('[MQE] autoFill — type:', type, 'aiResult:', JSON.stringify(aiResult));
+
+    if (type === 'Multiple Choice' && aiResult.correctAnswer != null) {
+      const answerDivs = qEl.querySelectorAll('.answer > div[class^="r"]');
+      const idx = Number(aiResult.correctAnswer) - 1;
+      console.log('[MQE] MC — divs:', answerDivs.length, 'idx:', idx);
+      if (answerDivs[idx]) {
+        const radio = answerDivs[idx].querySelector('input[type=radio]');
+        console.log('[MQE] MC — radio found:', !!radio);
+        if (radio) { clickRadio(radio); filled++; }
+      }
+    }
+
+    else if (type === 'K-Prime' && aiResult.answers) {
+      const table = qEl.querySelector('table.generaltable');
+      const rows = table ? table.querySelectorAll('tbody tr') : [];
+      const headers = questionData.headers || [];
+      console.log('[MQE] KP — rows:', rows.length, 'headers:', headers);
+      aiResult.answers.forEach((a, i) => {
+        if (!rows[i]) return;
+        const targetCol = headers.indexOf(a.answer);
+        console.log('[MQE] KP — ans:', a.answer, 'col:', targetCol);
+        if (targetCol < 0) return;
+        const tds = rows[i].querySelectorAll('td.kprimeresponsebutton');
+        if (tds[targetCol]) {
+          const radio = tds[targetCol].querySelector('input[type=radio]');
+          if (radio) { clickRadio(radio); filled++; }
+        }
+      });
+    }
+
+    else if (type.startsWith('Lückentext') && aiResult.gaps) {
+      const qtextEl = qEl.querySelector('.qtext');
+      const selects = qtextEl ? qtextEl.querySelectorAll('select') : [];
+      console.log('[MQE] Gap — selects:', selects.length, 'gaps:', aiResult.gaps.length);
+      aiResult.gaps.forEach((g) => {
+        const sel = selects[Number(g.gapNumber) - 1];
+        if (!sel) return;
+        const opt = Array.from(sel.options).find((o) => textMatches(o.textContent, g.answer));
+        console.log('[MQE] Gap — gap', g.gapNumber, 'answer:', g.answer, 'found:', !!opt);
+        if (opt) { setSelect(sel, opt); filled++; }
+      });
+    }
+
+    else if (type === 'Zuordnung (Match)' && aiResult.matches) {
+      const rows = qEl.querySelectorAll('table.answer tbody tr');
+      console.log('[MQE] Match — rows:', rows.length, 'matches:', aiResult.matches.length);
+      aiResult.matches.forEach((m, i) => {
+        if (!rows[i]) return;
+        const sel = rows[i].querySelector('select');
+        if (!sel) return;
+        const opt = Array.from(sel.options).find((o) => textMatches(o.textContent, m.answer));
+        console.log('[MQE] Match —', i, 'answer:', m.answer, 'found:', !!opt);
+        if (opt) { setSelect(sel, opt); filled++; }
+      });
+    }
+
+    else {
+      console.log('[MQE] autoFill — NO BRANCH MATCHED. type:', type, 'keys:', Object.keys(aiResult));
+    }
+
+    return filled;
+  }
+
   // ---------- Modal ----------
 
   function closeModal() {
@@ -300,7 +444,7 @@
     if (e.key === 'Escape') closeModal();
   }
 
-  function showModal(text) {
+  function showModal(text, questionData, qEl) {
     closeModal();
     const overlay = document.createElement('div');
     overlay.id = MODAL_ID;
@@ -310,8 +454,10 @@
         <div class="mqe-modal-header">
           <span class="mqe-modal-title">Moodle Question Extractor</span>
           <div class="mqe-modal-actions">
+            <button class="mqe-btn mqe-solve" type="button">AI Loesen</button>
+            <button class="mqe-btn mqe-fill" type="button" style="display:none">Ausfuellen</button>
             <button class="mqe-btn mqe-copy" type="button">Kopieren</button>
-            <button class="mqe-btn mqe-close" type="button" aria-label="Schliessen">✕</button>
+            <button class="mqe-btn mqe-close" type="button" aria-label="Schliessen">&#10005;</button>
           </div>
         </div>
         <textarea class="mqe-modal-text" spellcheck="false" readonly></textarea>
@@ -328,8 +474,80 @@
     const statusEl = overlay.querySelector('.mqe-status');
     const setStatus = (msg) => {
       statusEl.textContent = msg;
-      if (msg) setTimeout(() => { statusEl.textContent = ''; }, 2000);
+      if (msg) setTimeout(() => { statusEl.textContent = ''; }, 3000);
     };
+
+    // Store last AI result for the fill button
+    let lastAiResult = null;
+
+    // Auto-fill button — close modal first so selects can receive focus/events
+    overlay.querySelector('.mqe-fill').addEventListener('click', () => {
+      if (!qEl || !questionData || !lastAiResult) {
+        setStatus('Fehler: keine Daten zum Ausfuellen.');
+        return;
+      }
+      const savedResult = lastAiResult;
+      const savedData = questionData;
+      const savedQel = qEl;
+      closeModal();
+      // Small delay to let the DOM settle after modal removal
+      setTimeout(() => {
+        const count = autoFill(savedQel, savedData, savedResult);
+        console.log('[MQE] autoFill result:', count, 'fields filled');
+      }, 50);
+    });
+
+    // AI Solve button
+    if (questionData) {
+      overlay.querySelector('.mqe-solve').addEventListener('click', async () => {
+        const solveBtn = overlay.querySelector('.mqe-solve');
+        if (solveBtn.disabled) return;
+
+        solveBtn.disabled = true;
+        solveBtn.textContent = '...';
+        setStatus('AI wird abgefragt...');
+
+        try {
+          const reply = await browser.runtime.sendMessage({
+            action: 'solve',
+            data: questionData,
+          });
+
+          if (!reply) {
+            throw new Error('No response from background script');
+          }
+
+          if (!reply.ok) {
+            throw new Error(reply.error || 'Unknown error');
+          }
+
+          const result = reply.data;
+
+          if (result.error) {
+            ta.value += '\n\nFehler: ' + result.error;
+            if (result.raw) {
+              ta.value += '\n\n--- Raw Response ---\n' + result.raw;
+            }
+            setStatus('Fehler bei der AI-Abfrage.');
+          } else {
+            const answerText = formatAnswer(questionData, result);
+            ta.value += answerText;
+            lastAiResult = result;
+            if (qEl) overlay.querySelector('.mqe-fill').style.display = '';
+            setStatus('AI-Antwort empfangen.');
+          }
+        } catch (err) {
+          ta.value += '\n\nVerbindungsfehler: ' + (err.message || err);
+          setStatus('Server nicht erreichbar.');
+        } finally {
+          solveBtn.disabled = false;
+          solveBtn.textContent = 'AI Loesen';
+        }
+      });
+    } else {
+      // No question data — hide the solve button
+      overlay.querySelector('.mqe-solve').style.display = 'none';
+    }
 
     overlay.querySelector('.mqe-copy').addEventListener('click', async () => {
       try {
@@ -372,10 +590,10 @@
       try {
         const data = extractQuestion(qEl);
         const text = formatAsText(data);
-        showModal(text);
+        showModal(text, data, qEl);
       } catch (err) {
         console.error('[MoodleExtractor] failed:', err);
-        showModal('Fehler beim Extrahieren: ' + (err && err.message ? err.message : err));
+        showModal('Fehler beim Extrahieren: ' + (err && err.message ? err.message : err), null, null);
       }
     });
 
