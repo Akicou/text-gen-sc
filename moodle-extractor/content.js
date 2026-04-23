@@ -65,17 +65,41 @@
 
   function extractKprime(qEl) {
     const { qNo, state, grade, questionText } = extractCommon(qEl);
-    const rows = qEl.querySelectorAll('table.generaltable tbody tr');
+    const table = qEl.querySelector('table.generaltable');
+
+    // Extract column headers from <thead> (e.g. "Franchise", "Selbstbehalt")
+    const headerCells = table?.querySelectorAll('thead th.header') || [];
+    const headers = Array.from(headerCells)
+      .map((th) => clean(th.textContent))
+      .filter((h) => h);
+    if (headers.length === 0) headers.push('richtig', 'falsch');
+
+    const rows = table?.querySelectorAll('tbody tr') || [];
     const items = [];
     rows.forEach((tr) => {
       const optText = clean(tr.querySelector('.optiontext .optiontext, .optiontext')?.textContent);
-      if (optText) items.push(optText);
+      if (!optText) return;
+      // Find which radio is checked / has data-initial-value
+      const checkedRadio = tr.querySelector('input[type=radio][checked], input[type=radio]:checked');
+      const initialRadio = tr.querySelector('input[type=radio][data-initial-value]');
+      const selectedRadio = checkedRadio || initialRadio;
+      let selectedHeader = null;
+      if (selectedRadio) {
+        // The column index corresponds to the header index
+        const td = selectedRadio.closest('td');
+        const allTds = Array.from(tr.querySelectorAll('td.kprimeresponsebutton'));
+        const colIdx = allTds.indexOf(td);
+        if (colIdx >= 0 && colIdx < headers.length) {
+          selectedHeader = headers[colIdx];
+        }
+      }
+      items.push({ text: optText, selected: selectedHeader });
     });
     return {
-      type: 'K-Prime (richtig / falsch)',
+      type: 'K-Prime',
       qNo, state, grade, questionText,
       options: items,
-      headers: ['richtig', 'falsch'],
+      headers,
     };
   }
 
@@ -218,9 +242,13 @@
     L.push(data.questionText || '(kein Text)');
     L.push('');
 
-    if (data.type.startsWith('K-Prime')) {
-      L.push('--- Aussagen (richtig / falsch) ---');
-      data.options.forEach((opt, i) => L.push(`${i + 1}. ${opt}`));
+    if (data.type === 'K-Prime') {
+      const hdr = data.headers.join(' / ');
+      L.push(`--- Aussagen (${hdr}) ---`);
+      data.options.forEach((opt, i) => {
+        const sel = opt.selected ? `  [${opt.selected}]` : '';
+        L.push(`${i + 1}. ${opt.text}${sel}`);
+      });
     } else if (data.type === 'Multiple Choice') {
       L.push('--- Antwortoptionen ---');
       data.options.forEach((opt, i) => {
