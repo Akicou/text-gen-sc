@@ -1,5 +1,5 @@
 $VenvDir = "venv"
-$Requirements = @("pyperclip", "pydirectinput", "keyboard", "openai", "requests")
+$Requirements = @("pyperclip", "pydirectinput", "keyboard", "openai", "requests", "Pillow")
 
 if (-not (Test-Path $VenvDir)) {
     Write-Host "Creating virtual environment..."

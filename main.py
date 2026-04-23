@@ -7,6 +7,13 @@ import time
 import subprocess
 import json
 import requests
+import tkinter as tk
+import base64
+import io
+import tempfile
+from PIL import ImageGrab, Image
+import ctypes
+from ctypes import wintypes
 
 # Provider configurations
 PROVIDERS = {
@@ -269,6 +276,230 @@ def handle_alt_y():
     os._exit(0)
 
 
+# --- Screenshot Feature ---
+
+_screenshot_active = False
+
+
+def get_monitor_rect_from_mouse():
+    """Return (left, top, right, bottom) of the monitor under the mouse cursor."""
+    point = wintypes.POINT()
+    ctypes.windll.user32.GetCursorPos(ctypes.byref(point))
+
+    class MONITORINFOEXW(ctypes.Structure):
+        _fields_ = [
+            ("cbSize", wintypes.DWORD),
+            ("rcMonitor", wintypes.RECT),
+            ("rcWork", wintypes.RECT),
+            ("dwFlags", wintypes.DWORD),
+            ("szDevice", ctypes.c_wchar * 32),
+        ]
+
+    hmonitor = ctypes.windll.user32.MonitorFromPoint(point, 2)  # MONITOR_DEFAULTTONEAREST
+    info = MONITORINFOEXW()
+    info.cbSize = ctypes.sizeof(MONITORINFOEXW)
+    ctypes.windll.user32.GetMonitorInfoW(hmonitor, ctypes.byref(info))
+
+    r = info.rcMonitor
+    return (r.left, r.top, r.right, r.bottom)
+
+
+def capture_region(bbox):
+    """Capture a screenshot of the given screen region (left, top, right, bottom)."""
+    return ImageGrab.grab(bbox=bbox)
+
+
+def image_to_base64(image):
+    """Convert a PIL Image to a base64-encoded PNG string."""
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    buffer.seek(0)
+    return base64.b64encode(buffer.read()).decode("utf-8")
+
+
+def query_ai_vision(image_base64, prompt):
+    """Query the AI with a base64 image and text prompt using the vision API."""
+    provider = PROVIDERS[selected_provider]
+    client = OpenAI(
+        api_key=api_key if provider["needs_api_key"] else "not-needed",
+        base_url=provider["base_url"],
+    )
+    context = get_context()
+    system_prompt = (
+        "You are a helpful assistant that analyzes images and text. "
+        "Respond in plain text only. "
+        "Do not use markdown bold (** or __), italic (* or _), headers (#), or any other markdown formatting. "
+        "Do not use emojis or special unicode symbols. "
+        "Keep responses clean, concise, and plainly formatted."
+    )
+    try:
+        response = client.chat.completions.create(
+            model=selected_model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/png;base64,{image_base64}"
+                            },
+                        },
+                        {
+                            "type": "text",
+                            "text": prompt + f"\n\n<context>\n{context}\n</context>",
+                        },
+                    ],
+                },
+            ],
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"Error querying AI with vision: {e}")
+        return ""
+
+
+def open_in_notepad(text):
+    """Write text to a temp file and open it in Notepad."""
+    fd, path = tempfile.mkstemp(suffix=".txt", prefix="ai_response_")
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(text)
+    subprocess.Popen(["notepad.exe", path])
+
+
+class ScreenshotOverlay:
+    """Fullscreen transparent overlay for selecting a screen region."""
+
+    def __init__(self, monitor_rect):
+        self.monitor_rect = monitor_rect
+        self.start_x = None
+        self.start_y = None
+        self.end_x = None
+        self.end_y = None
+        self.selection_rect_id = None
+        self.result = None
+        self.root = None
+        self.canvas = None
+
+    def show(self):
+        """Display the overlay and block until selection is made or cancelled."""
+        mon_left, mon_top, mon_right, mon_bottom = self.monitor_rect
+        width = mon_right - mon_left
+        height = mon_bottom - mon_top
+
+        self.root = tk.Tk()
+        self.root.overrideredirect(True)
+        self.root.geometry(f"{width}x{height}+{mon_left}+{mon_top}")
+        self.root.attributes("-topmost", True)
+        self.root.attributes("-alpha", 0.3)
+        self.root.configure(bg="black")
+
+        self.canvas = tk.Canvas(
+            self.root,
+            bg="black",
+            highlightthickness=0,
+            cursor="cross",
+        )
+        self.canvas.pack(fill=tk.BOTH, expand=True)
+
+        self.canvas.bind("<ButtonPress-1>", self._on_press)
+        self.canvas.bind("<B1-Motion>", self._on_drag)
+        self.canvas.bind("<ButtonRelease-1>", self._on_release)
+        self.root.bind("<Escape>", self._on_cancel)
+
+        self.root.mainloop()
+        return self.result
+
+    def _on_press(self, event):
+        self.start_x = event.x
+        self.start_y = event.y
+
+    def _on_drag(self, event):
+        if self.selection_rect_id:
+            self.canvas.delete(self.selection_rect_id)
+        self.end_x = event.x
+        self.end_y = event.y
+        self.selection_rect_id = self.canvas.create_rectangle(
+            self.start_x, self.start_y, self.end_x, self.end_y,
+            outline="white", width=2, fill="", dash=(4, 4),
+        )
+
+    def _on_release(self, event):
+        self.end_x = event.x
+        self.end_y = event.y
+        mon_left, mon_top = self.monitor_rect[0], self.monitor_rect[1]
+
+        left = min(self.start_x, self.end_x) + mon_left
+        top = min(self.start_y, self.end_y) + mon_top
+        right = max(self.start_x, self.end_x) + mon_left
+        bottom = max(self.start_y, self.end_y) + mon_top
+
+        if right - left < 5 or bottom - top < 5:
+            self.result = None
+        else:
+            self.result = (left, top, right, bottom)
+
+        self.root.destroy()
+
+    def _on_cancel(self, event):
+        self.result = None
+        self.root.destroy()
+
+
+def handle_alt_t():
+    """Handle ALT+T: screenshot region selection and AI analysis."""
+    global _screenshot_active
+    if _screenshot_active:
+        return
+    _screenshot_active = True
+
+    if selected_model is None:
+        print("No model selected. Press ALT+U to select a model.")
+        _screenshot_active = False
+        return
+
+    try:
+        monitor_rect = get_monitor_rect_from_mouse()
+
+        overlay = ScreenshotOverlay(monitor_rect)
+        selected_region = overlay.show()
+
+        if selected_region is None:
+            print("Screenshot cancelled.")
+            return
+
+        time.sleep(0.15)
+        screenshot = capture_region(selected_region)
+
+        max_dim = 2048
+        if max(screenshot.size) > max_dim:
+            screenshot.thumbnail((max_dim, max_dim), Image.LANCZOS)
+
+        img_b64 = image_to_base64(screenshot)
+
+        print("Analyzing screenshot...")
+        prompt = (
+            "Analyze this screenshot. First, briefly describe what is visible. "
+            "Then, if there are any questions, problems, errors, code, or requests visible in the image, "
+            "actively solve or answer them. Do not just read out what is on screen — provide real solutions, "
+            "explanations, fixes, or answers to anything shown."
+        )
+        response = query_ai_vision(img_b64, prompt)
+
+        if not response:
+            print("No response from AI.")
+            return
+
+        open_in_notepad(response)
+        print("Screenshot analysis opened in Notepad.")
+
+    except Exception as e:
+        print(f"Error during screenshot analysis: {e}")
+    finally:
+        _screenshot_active = False
+
+
 def setup_environment():
     if not os.path.exists("./data"):
         os.makedirs("./data")
@@ -287,12 +518,14 @@ def main():
     select_model()
 
     keyboard.add_hotkey("ctrl+c", handle_ctrl_c)
+    keyboard.add_hotkey("alt+t", handle_alt_t)
     keyboard.add_hotkey("alt+u", handle_alt_u)
     keyboard.add_hotkey("alt+y", handle_alt_y)
 
     print(
         "\nProgram running.\n"
         "  CTRL+C  - Process selected text\n"
+        "  ALT+T   - Screenshot analysis\n"
         "  ALT+U   - Change provider/model\n"
         "  ALT+Y   - Quit"
     )

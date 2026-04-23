@@ -2,7 +2,7 @@
 set -e
 
 VENV_DIR="venv"
-REQUIREMENTS="pyperclip pydirectinput keyboard openai requests"
+REQUIREMENTS="pyperclip pydirectinput keyboard openai requests Pillow"
 
 if [ ! -d "$VENV_DIR" ]; then
     echo "Creating virtual environment..."
