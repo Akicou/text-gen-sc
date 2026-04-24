@@ -45,6 +45,7 @@ selected_model = None
 selected_provider = None
 api_key = None
 background_mode = "--background" in sys.argv
+_control_popup_window = None
 
 
 def load_env():
@@ -344,48 +345,68 @@ def handle_alt_y():
 
 
 def show_control_popup():
-    """Show a small popup window with quit button (triggered by ALT+P)."""
-    root = tk.Tk()
-    root.title("AI Assistant Control")
-    root.geometry("300x150")
-    root.resizable(False, False)
+    """Show a small popup window with quit button (triggered by ALT+P). Toggles if already open."""
+    global _control_popup_window
 
-    # Make window stay on top
-    root.attributes("-topmost", True)
+    # If window exists and is open, close it (toggle behavior)
+    if _control_popup_window is not None:
+        try:
+            if tk.Tk.winfo_exists(_control_popup_window):
+                _control_popup_window.destroy()
+        except Exception:
+            pass
+        _control_popup_window = None
+        return
 
-    # Provider/model info
-    info_frame = tk.Frame(root)
-    info_frame.pack(pady=10, padx=10, fill=tk.X)
+    def create_popup():
+        global _control_popup_window
 
-    provider_name = PROVIDERS.get(selected_provider, {}).get("name", "Unknown")
-    tk.Label(info_frame, text=f"Provider: {provider_name}", font=("Arial", 10)).pack(anchor=tk.W)
-    tk.Label(info_frame, text=f"Model: {selected_model or 'Not set'}", font=("Arial", 10)).pack(anchor=tk.W)
+        root = tk.Tk()
+        root.title("AI Assistant Control")
+        root.geometry("300x150")
+        root.resizable(False, False)
+        root.attributes("-topmost", True)
 
-    # Status
-    status_label = tk.Label(info_frame, text="Status: Running", fg="green", font=("Arial", 10, "bold"))
-    status_label.pack(anchor=tk.W, pady=(5, 0))
+        # Provider/model info
+        info_frame = tk.Frame(root)
+        info_frame.pack(pady=10, padx=10, fill=tk.X)
 
-    def quit_program():
-        status_label.config(text="Stopping...", fg="orange")
-        root.update()
-        root.destroy()
-        # Give window time to close before exit
-        root.after(100, lambda: os._exit(0))
+        provider_name = PROVIDERS.get(selected_provider, {}).get("name", "Unknown")
+        tk.Label(info_frame, text=f"Provider: {provider_name}", font=("Arial", 10)).pack(anchor=tk.W)
+        tk.Label(info_frame, text=f"Model: {selected_model or 'Not set'}", font=("Arial", 10)).pack(anchor=tk.W)
 
-    def minimize():
-        root.iconify()
+        # Status
+        status_label = tk.Label(info_frame, text="Status: Running", fg="green", font=("Arial", 10, "bold"))
+        status_label.pack(anchor=tk.W, pady=(5, 0))
 
-    # Buttons frame
-    btn_frame = tk.Frame(root)
-    btn_frame.pack(pady=10)
+        def quit_program():
+            status_label.config(text="Stopping...", fg="orange")
+            root.update()
+            time.sleep(0.1)
+            os._exit(0)
 
-    tk.Button(btn_frame, text="Quit", command=quit_program, bg="#ff6b6b", fg="white", width=10).pack(side=tk.LEFT, padx=5)
-    tk.Button(btn_frame, text="Minimize", command=minimize, width=10).pack(side=tk.LEFT, padx=5)
+        def minimize():
+            root.iconify()
 
-    # Close protocol
-    root.protocol("WM_DELETE_WINDOW", minimize)
+        def on_close():
+            nonlocal root
+            root.iconify()
 
-    root.mainloop()
+        # Buttons frame
+        btn_frame = tk.Frame(root)
+        btn_frame.pack(pady=10)
+
+        tk.Button(btn_frame, text="Quit", command=quit_program, bg="#ff6b6b", fg="white", width=10).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Minimize", command=minimize, width=10).pack(side=tk.LEFT, padx=5)
+
+        root.protocol("WM_DELETE_WINDOW", on_close)
+        _control_popup_window = root
+        root.mainloop()
+        _control_popup_window = None
+
+    # Run popup in separate thread so keyboard hotkey remains responsive
+    thread = threading.Thread(target=create_popup, daemon=True)
+    thread.start()
 
 
 # --- Screenshot Feature ---
