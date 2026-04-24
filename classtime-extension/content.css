@@ -1,0 +1,169 @@
+/* ---- Button group: hidden until hovering the footer area ---- */
+.ctq-btn-group {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  margin-top: 8px;
+  justify-content: center;
+}
+
+/* Show when footer is hovered */
+.css-bx5sx3-footer:hover .ctq-btn-group,
+.ctq-btn-group:hover {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Base button style */
+.ctq-btn {
+  font-size: 11px;
+  font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  line-height: 1.2;
+  font-weight: 500;
+  transition: background 0.15s ease;
+}
+
+/* Inline AI button — green */
+.ctq-inline-ai {
+  background: #059669;
+  color: #fff;
+  border-color: #047857;
+}
+.ctq-inline-ai:hover  { background: #047857; }
+.ctq-inline-ai:active { background: #065f46; }
+.ctq-inline-ai:disabled {
+  background: #9ca3af;
+  border-color: #9ca3af;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* Inline Show button — slate */
+.ctq-inline-show {
+  background: #4b5563;
+  color: #fff;
+  border-color: #374151;
+}
+.ctq-inline-show:hover  { background: #374151; }
+.ctq-inline-show:active { background: #1f2937; }
+
+/* ---- Sorter position badge ---- */
+.ctq-sort-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 6px;
+  background: #7c3aed;
+  color: #fff;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: system-ui, sans-serif;
+  pointer-events: none;
+}
+
+/* ---- Modal overlay ---- */
+.ctq-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 2147483646;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+}
+
+.ctq-modal-box {
+  background: #fff;
+  color: #111827;
+  width: min(720px, 92vw);
+  max-height: 85vh;
+  border-radius: 10px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.35);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ctq-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #f3f4f6;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.ctq-modal-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.ctq-modal-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* Modal-specific button overrides */
+.ctq-modal-solve {
+  background: #059669;
+  color: #fff;
+  border-color: #047857;
+}
+.ctq-modal-solve:hover    { background: #047857; }
+.ctq-modal-solve:disabled { background: #9ca3af; border-color: #9ca3af; cursor: not-allowed; }
+
+.ctq-modal-fill {
+  background: #d97706;
+  color: #fff;
+  border-color: #b45309;
+}
+.ctq-modal-fill:hover { background: #b45309; }
+
+.ctq-modal-copy {
+  background: #2563eb;
+  color: #fff;
+  border-color: #1d4ed8;
+}
+.ctq-modal-copy:hover { background: #1d4ed8; }
+
+.ctq-modal-close {
+  background: #e5e7eb;
+  color: #111827;
+  border-color: #d1d5db;
+  min-width: 30px;
+}
+.ctq-modal-close:hover { background: #d1d5db; }
+
+.ctq-modal-text {
+  flex: 1 1 auto;
+  min-height: 240px;
+  margin: 0;
+  padding: 12px 14px;
+  border: none;
+  outline: none;
+  resize: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #111827;
+  background: #fff;
+  white-space: pre;
+  overflow: auto;
+}
+
+.ctq-modal-footer {
+  padding: 8px 14px;
+  border-top: 1px solid #e5e7eb;
+  background: #f9fafb;
+  min-height: 28px;
+  font-size: 12px;
+  color: #047857;
+}

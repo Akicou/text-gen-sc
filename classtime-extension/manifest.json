@@ -1,0 +1,33 @@
+{
+  "manifest_version": 2,
+  "name": "Classtime AI Solver",
+  "version": "1.0.0",
+  "description": "Adds an AI solve button to Classtime questions (multichoice, singlechoice, categorizer, sorter, cloze, opentext).",
+  "icons": {
+    "48": "icons/icon48.png",
+    "96": "icons/icon96.png"
+  },
+  "permissions": [
+    "http://localhost:5923/*"
+  ],
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.classtime.com/*"
+      ],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "classtime-ai-solver@local",
+      "strict_min_version": "91.0"
+    }
+  }
+}
