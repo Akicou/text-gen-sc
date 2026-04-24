@@ -61,12 +61,15 @@ def load_config():
 def load_env():
     env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
     if os.path.exists(env_path):
-        with open(env_path, "r") as f:
+        with open(env_path, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if line and not line.startswith("#") and "=" in line:
                     key, value = line.split("=", 1)
-                    os.environ[key.strip()] = value.strip()
+                    value = value.strip().strip("'\"")
+                    os.environ[key.strip()] = value
+    else:
+        print(f"[warn] .env not found at {env_path}")
 
 
 def get_context():
@@ -334,12 +337,14 @@ def extract_json_from_response(text):
 
 
 def query_ai_structured(question_data):
+    load_env()
     provider_id, model = load_config()
     provider = PROVIDERS.get(provider_id, PROVIDERS[DEFAULT_PROVIDER])
 
     api_key = "not-needed"
     if provider["needs_api_key"]:
         api_key = os.environ.get(provider["env_key"])
+        print(f"[debug] API key loaded: {'yes (' + api_key[:8] + '...)' if api_key else 'NO'}")
         if not api_key:
             return {"error": f"Missing API key: {provider['env_key']}"}
 

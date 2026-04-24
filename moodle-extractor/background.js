@@ -8,9 +8,12 @@ browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(msg.data),
   })
-    .then((res) => {
-      if (!res.ok) throw new Error(`Server error: ${res.status}`);
-      return res.json();
+    .then(async (res) => {
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || `Server error: ${res.status}`);
+      }
+      return data;
     })
     .then((result) => sendResponse({ ok: true, data: result }))
     .catch((err) => sendResponse({ ok: false, error: err.message || String(err) }));

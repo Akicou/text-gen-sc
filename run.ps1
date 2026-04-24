@@ -12,7 +12,7 @@ if (-not (Test-Path $VenvDir)) {
 }
 
 # Start the AI solve server in the background
-Start-Process -NoNewWindow -FilePath "python" -ArgumentList "server.py"
+Start-Process -NoNewWindow -FilePath "$VenvDir\Scripts\python.exe" -ArgumentList "server.py" -WorkingDirectory $PSScriptRoot
 Write-Host "AI server started on http://localhost:5923"
 
 python main.py

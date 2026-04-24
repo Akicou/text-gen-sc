@@ -92,12 +92,20 @@ def fetch_lmstudio_models():
         return ["local-model"]
 
 
-# Default OpenRouter models
-OPENROUTER_MODELS = [
-    "openai/gpt-oss-120b",
-    "google/gemini-2.0-flash-001",
-    "google/gemma-3n-e4b-it",
-]
+def fetch_openrouter_models():
+    """Fetch available models from OpenRouter."""
+    try:
+        resp = requests.get("https://openrouter.ai/api/v1/models", timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+        models = []
+        for m in data.get("data", []):
+            models.append(m["id"])
+        models.sort()
+        return models
+    except Exception as e:
+        print(f"Error fetching OpenRouter models: {e}")
+        return []
 
 
 def save_config():
@@ -138,7 +146,10 @@ def select_provider():
 def get_models_for_provider():
     """Get the list of available models for the selected provider."""
     if selected_provider == "openrouter":
-        return OPENROUTER_MODELS
+        models = fetch_openrouter_models()
+        if not models:
+            print("Could not fetch models from OpenRouter.")
+        return models
     elif selected_provider == "ollama":
         models = fetch_ollama_models()
         if not models:
@@ -152,11 +163,23 @@ def get_models_for_provider():
 def select_model():
     """Select a model from the current provider's model list."""
     global selected_model
-    models = get_models_for_provider()
-    if not models:
+    all_models = get_models_for_provider()
+    if not all_models:
         return
 
     while True:
+        if selected_provider == "openrouter":
+            query = input(f"\nSearch models (or press Enter to list all {len(all_models)}): ").strip().lower()
+            if query:
+                models = [m for m in all_models if query in m.lower()]
+                if not models:
+                    print(f"No models matching '{query}'. Try again.")
+                    continue
+            else:
+                models = all_models
+        else:
+            models = all_models
+
         print(f"\nAvailable models ({PROVIDERS[selected_provider]['name']}):")
         for i, model in enumerate(models, 1):
             print(f"  {i}. {model}")
@@ -291,6 +314,7 @@ def handle_alt_y():
 # --- Screenshot Feature ---
 
 _screenshot_active = False
+_screenshot_last_done = 0
 
 
 def get_monitor_rect_from_mouse():
@@ -421,7 +445,16 @@ class ScreenshotOverlay:
         self.canvas.bind("<ButtonRelease-1>", self._on_release)
         self.root.bind("<Escape>", self._on_cancel)
 
+        self.root.focus_force()
+
+        # Global escape hook as fallback in case tkinter doesn't have focus
+        self._escape_hook = keyboard.on_press_key("esc", lambda _: self.root.after(0, self._cancel))
+
         self.root.mainloop()
+
+        # Clean up the global hook
+        keyboard.unhook(self._escape_hook)
+
         return self.result
 
     def _on_press(self, event):
@@ -455,15 +488,18 @@ class ScreenshotOverlay:
 
         self.root.destroy()
 
-    def _on_cancel(self, event):
+    def _cancel(self):
         self.result = None
         self.root.destroy()
+
+    def _on_cancel(self, event):
+        self._cancel()
 
 
 def handle_alt_t():
     """Handle ALT+T: screenshot region selection and AI analysis."""
-    global _screenshot_active
-    if _screenshot_active:
+    global _screenshot_active, _screenshot_last_done
+    if _screenshot_active or (time.time() - _screenshot_last_done) < 1.0:
         return
     _screenshot_active = True
 
@@ -510,6 +546,7 @@ def handle_alt_t():
     except Exception as e:
         print(f"Error during screenshot analysis: {e}")
     finally:
+        _screenshot_last_done = time.time()
         _screenshot_active = False
 
 
