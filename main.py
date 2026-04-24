@@ -2,18 +2,21 @@ import pyperclip
 import pydirectinput
 import keyboard
 import os
+import sys
 from openai import OpenAI
 import time
 import subprocess
 import json
 import requests
 import tkinter as tk
+from tkinter import messagebox
 import base64
 import io
 import tempfile
 from PIL import ImageGrab, Image
 import ctypes
 from ctypes import wintypes
+import threading
 
 # Provider configurations
 PROVIDERS = {
@@ -41,6 +44,7 @@ PROVIDERS = {
 selected_model = None
 selected_provider = None
 api_key = None
+background_mode = "--background" in sys.argv
 
 
 def load_env():
@@ -53,6 +57,34 @@ def load_env():
                 if line and not line.startswith("#") and "=" in line:
                     key, value = line.split("=", 1)
                     os.environ[key.strip()] = value.strip()
+
+
+def load_config():
+    """Load provider and model from config file. Returns True if successful."""
+    global selected_provider, selected_model, api_key
+    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".server_config.json")
+    if not os.path.exists(config_path):
+        return False
+    try:
+        with open(config_path, "r") as f:
+            config = json.load(f)
+            selected_provider = config.get("provider")
+            selected_model = config.get("model")
+            if selected_provider and selected_model:
+                if selected_provider in PROVIDERS:
+                    provider = PROVIDERS[selected_provider]
+                    if provider["needs_api_key"]:
+                        key = get_api_key(selected_provider)
+                        if key:
+                            api_key = key
+                        else:
+                            return False
+                    else:
+                        api_key = "not-needed"
+                    return True
+    except Exception:
+        pass
+    return False
 
 
 def get_api_key(provider_id):
@@ -311,6 +343,51 @@ def handle_alt_y():
     os._exit(0)
 
 
+def show_control_popup():
+    """Show a small popup window with quit button (triggered by ALT+P)."""
+    root = tk.Tk()
+    root.title("AI Assistant Control")
+    root.geometry("300x150")
+    root.resizable(False, False)
+
+    # Make window stay on top
+    root.attributes("-topmost", True)
+
+    # Provider/model info
+    info_frame = tk.Frame(root)
+    info_frame.pack(pady=10, padx=10, fill=tk.X)
+
+    provider_name = PROVIDERS.get(selected_provider, {}).get("name", "Unknown")
+    tk.Label(info_frame, text=f"Provider: {provider_name}", font=("Arial", 10)).pack(anchor=tk.W)
+    tk.Label(info_frame, text=f"Model: {selected_model or 'Not set'}", font=("Arial", 10)).pack(anchor=tk.W)
+
+    # Status
+    status_label = tk.Label(info_frame, text="Status: Running", fg="green", font=("Arial", 10, "bold"))
+    status_label.pack(anchor=tk.W, pady=(5, 0))
+
+    def quit_program():
+        status_label.config(text="Stopping...", fg="orange")
+        root.update()
+        root.destroy()
+        # Give window time to close before exit
+        root.after(100, lambda: os._exit(0))
+
+    def minimize():
+        root.iconify()
+
+    # Buttons frame
+    btn_frame = tk.Frame(root)
+    btn_frame.pack(pady=10)
+
+    tk.Button(btn_frame, text="Quit", command=quit_program, bg="#ff6b6b", fg="white", width=10).pack(side=tk.LEFT, padx=5)
+    tk.Button(btn_frame, text="Minimize", command=minimize, width=10).pack(side=tk.LEFT, padx=5)
+
+    # Close protocol
+    root.protocol("WM_DELETE_WINDOW", minimize)
+
+    root.mainloop()
+
+
 # --- Screenshot Feature ---
 
 _screenshot_active = False
@@ -564,21 +641,31 @@ def main():
     load_env()
     setup_environment()
 
-    select_provider()
-    select_model()
+    if background_mode:
+        # Load previous config instead of asking
+        if not load_config():
+            print("No valid configuration found. Please run run.ps1 interactively first.")
+            sys.exit(1)
+        print(f"Background mode started with {PROVIDERS[selected_provider]['name']} / {selected_model}")
+    else:
+        select_provider()
+        select_model()
 
     keyboard.add_hotkey("ctrl+c", handle_ctrl_c)
     keyboard.add_hotkey("alt+t", handle_alt_t)
     keyboard.add_hotkey("alt+u", handle_alt_u)
     keyboard.add_hotkey("alt+y", handle_alt_y)
+    keyboard.add_hotkey("alt+p", show_control_popup)
 
-    print(
-        "\nProgram running.\n"
-        "  CTRL+C  - Process selected text\n"
-        "  ALT+T   - Screenshot analysis\n"
-        "  ALT+U   - Change provider/model\n"
-        "  ALT+Y   - Quit"
-    )
+    if not background_mode:
+        print(
+            "\nProgram running.\n"
+            "  CTRL+C  - Process selected text\n"
+            "  ALT+T   - Screenshot analysis\n"
+            "  ALT+U   - Change provider/model\n"
+            "  ALT+Y   - Quit\n"
+            "  ALT+P   - Control menu"
+        )
     keyboard.wait()
 
 
