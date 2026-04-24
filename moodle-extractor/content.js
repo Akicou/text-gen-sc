@@ -598,6 +598,58 @@
     });
 
     infoEl.appendChild(btn);
+
+    // Inline AI button — solves & auto-fills without opening the modal
+    const aiBtn = document.createElement('button');
+    aiBtn.type = 'button';
+    aiBtn.className = 'mqe-ai-btn';
+    aiBtn.title = 'AI lösen & ausfüllen (ohne Popup)';
+    aiBtn.textContent = '🤖 AI';
+
+    aiBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (aiBtn.disabled) return;
+
+      const originalText = aiBtn.textContent;
+      aiBtn.disabled = true;
+      aiBtn.textContent = '⏳';
+
+      try {
+        const questionData = extractQuestion(qEl);
+        const reply = await browser.runtime.sendMessage({
+          action: 'solve',
+          data: questionData,
+        });
+
+        if (!reply || !reply.ok) {
+          throw new Error((reply && reply.error) || 'Keine Antwort vom Server');
+        }
+
+        const result = reply.data;
+        if (result.error) {
+          throw new Error(result.error);
+        }
+
+        const filled = autoFill(qEl, questionData, result);
+        aiBtn.textContent = filled > 0 ? '✅' : '⚠️';
+        setTimeout(() => {
+          aiBtn.textContent = originalText;
+          aiBtn.disabled = false;
+        }, 2000);
+      } catch (err) {
+        console.error('[MoodleExtractor] AI inline error:', err);
+        aiBtn.textContent = '❌';
+        aiBtn.title = err.message || 'Fehler';
+        setTimeout(() => {
+          aiBtn.textContent = originalText;
+          aiBtn.title = 'AI lösen & ausfüllen (ohne Popup)';
+          aiBtn.disabled = false;
+        }, 3000);
+      }
+    });
+
+    infoEl.appendChild(aiBtn);
   }
 
   function scan(root = document) {

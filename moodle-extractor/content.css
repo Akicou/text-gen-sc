@@ -20,6 +20,29 @@ div.que:hover > .info .mqe-extract-btn { display: inline-block; }
 .mqe-extract-btn:active { background: #1e40af; }
 .mqe-extract-btn:focus  { outline: 2px solid #93c5fd; outline-offset: 1px; }
 
+/* Inline AI solve button */
+.mqe-ai-btn {
+  display: none;
+  margin-left: 4px;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+  color: #fff;
+  background: #059669;
+  border: 1px solid #047857;
+  border-radius: 6px;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  line-height: 1.2;
+  vertical-align: middle;
+  transition: background 0.15s ease;
+}
+div.que:hover > .info .mqe-ai-btn { display: inline-block; }
+.mqe-ai-btn:hover  { background: #047857; }
+.mqe-ai-btn:active { background: #065f46; }
+.mqe-ai-btn:focus  { outline: 2px solid #6ee7b7; outline-offset: 1px; }
+.mqe-ai-btn:disabled { background: #9ca3af; border-color: #9ca3af; cursor: not-allowed; opacity: 0.7; }
+
 /* Modal overlay */
 .mqe-modal-overlay {
   position: fixed;
