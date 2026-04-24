@@ -133,37 +133,64 @@
 
   // ---------- Auto-fill ----------
 
-  function clickEl(el) {
-    el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-    el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+  // MUI React components attach handlers to span.MuiButtonBase-root, not to label/input.
+  // We must dispatch a full mouse event sequence on that span.
+  function clickMui(el) {
+    if (!el) return;
+    const evt = (type) => new MouseEvent(type, {
+      bubbles: true, cancelable: true, view: window, detail: 1,
+    });
+    el.dispatchEvent(evt('mouseover'));
+    el.dispatchEvent(evt('mouseenter'));
+    el.dispatchEvent(evt('mousedown'));
+    el.dispatchEvent(evt('mouseup'));
+    el.dispatchEvent(evt('click'));
     el.click();
   }
 
+  // Find the MUI interactive element in a choice wrapper and click it.
+  function clickChoice(wrapper) {
+    // Prefer the MuiButtonBase-root span — that's where React's handler lives.
+    const muiSpan = wrapper.querySelector('span.MuiButtonBase-root');
+    if (muiSpan) { clickMui(muiSpan); return true; }
+    // Fallback: click the label, then the raw input.
+    const label = wrapper.querySelector('label');
+    if (label) { clickMui(label); return true; }
+    const input = wrapper.querySelector('input[type=checkbox], input[type=radio]');
+    if (input) { clickMui(input); return true; }
+    return false;
+  }
+
+  // Normalise whatever the AI sends into an array of 1-based integers.
+  function normaliseAnswers(result) {
+    let raw = result.correctAnswers ?? result.correct_answers
+           ?? (result.correctAnswer != null ? result.correctAnswer : null)
+           ?? (result.correct_answer != null ? result.correct_answer : null);
+    if (raw == null) return [];
+    // Could be a number, string, or array.
+    if (!Array.isArray(raw)) raw = String(raw).split(/[,\s]+/);
+    return raw.map(Number).filter((n) => !isNaN(n) && n > 0);
+  }
+
   function fillMultichoice(qEl, result) {
-    const wrappers = qEl.querySelectorAll('[data-testid="choice-wrapper"]');
-    const answers = result.correctAnswers || (result.correctAnswer != null ? [result.correctAnswer] : []);
+    const wrappers = Array.from(qEl.querySelectorAll('[data-testid="choice-wrapper"]'));
+    const answers = normaliseAnswers(result);
     let filled = 0;
     answers.forEach((idx) => {
-      const w = wrappers[Number(idx) - 1];
+      const w = wrappers[idx - 1];
       if (!w) return;
-      const cb = w.querySelector('input[type=checkbox]');
-      if (cb && !cb.checked) {
-        const label = w.querySelector('label') || cb;
-        clickEl(label);
-        filled++;
-      }
+      if (clickChoice(w)) filled++;
     });
     return filled;
   }
 
   function fillSinglechoice(qEl, result) {
-    const wrappers = qEl.querySelectorAll('[data-testid="choice-wrapper"]');
-    const idx = Number(result.correctAnswer) - 1;
-    const w = wrappers[idx];
+    const wrappers = Array.from(qEl.querySelectorAll('[data-testid="choice-wrapper"]'));
+    const [idx] = normaliseAnswers(result);
+    if (!idx) return 0;
+    const w = wrappers[idx - 1];
     if (!w) return 0;
-    const label = w.querySelector('label') || w.querySelector('input[type=radio]');
-    if (label) { clickEl(label); return 1; }
-    return 0;
+    return clickChoice(w) ? 1 : 0;
   }
 
   function fillCategorizer(qEl, result) {
@@ -172,9 +199,11 @@
     result.assignments.forEach(({ item, category }) => {
       const target = `${clean(item)}, ${clean(category)}`.toLowerCase();
       qEl.querySelectorAll('input[type=checkbox][aria-label]').forEach((cb) => {
-        if (clean(cb.getAttribute('aria-label')).toLowerCase() === target && !cb.checked) {
-          const wrapper = cb.closest('[data-testid="question-answer-checkbox"]');
-          if (wrapper) { clickEl(wrapper); filled++; }
+        const lbl = clean(cb.getAttribute('aria-label')).toLowerCase();
+        if (lbl === target || lbl.includes(target) || target.includes(lbl)) {
+          // Click the MuiButtonBase span that wraps this input
+          const muiSpan = cb.closest('span.MuiButtonBase-root');
+          if (muiSpan) { clickMui(muiSpan); filled++; }
         }
       });
     });
@@ -223,7 +252,7 @@
       group.querySelectorAll('[data-testid="highlight-text-choice"]').forEach((btn) => {
         const btnText = clean(btn.querySelector('[data-text="true"]')?.textContent || btn.textContent);
         if (btnText.toLowerCase() === clean(choice).toLowerCase()) {
-          clickEl(btn);
+          clickMui(btn);
           filled++;
         }
       });
