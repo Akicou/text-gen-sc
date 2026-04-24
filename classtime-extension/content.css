@@ -1,17 +1,20 @@
-/* ---- Button group: hidden until hovering the footer area ---- */
+/* ===== Classtime AI Solver Styles ===== */
+
+/* Button group - hidden by default, shown on footer hover */
 .ctq-btn-group {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   align-items: center;
+  justify-content: center;
+  margin-top: 10px;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s ease;
-  margin-top: 8px;
-  justify-content: center;
 }
 
-/* Show when footer is hovered */
+/* Show when hovering the footer */
 .css-bx5sx3-footer:hover .ctq-btn-group,
+.styles__answerButtonWrapper-a7f53e:hover + .ctq-btn-group,
 .ctq-btn-group:hover {
   opacity: 1;
   pointer-events: auto;
@@ -19,151 +22,74 @@
 
 /* Base button style */
 .ctq-btn {
-  font-size: 11px;
-  font-family: system-ui, -apple-system, Segoe UI, sans-serif;
-  padding: 4px 10px;
-  border-radius: 6px;
-  border: 1px solid transparent;
-  cursor: pointer;
-  line-height: 1.2;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 12px;
   font-weight: 500;
-  transition: background 0.15s ease;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
 }
 
-/* Inline AI button — green */
-.ctq-inline-ai {
+/* AI button - green */
+.ctq-ai-btn {
+  background: #10b981;
+  color: white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.ctq-ai-btn:hover {
   background: #059669;
-  color: #fff;
-  border-color: #047857;
+  transform: translateY(-1px);
 }
-.ctq-inline-ai:hover  { background: #047857; }
-.ctq-inline-ai:active { background: #065f46; }
-.ctq-inline-ai:disabled {
+.ctq-ai-btn:active {
+  background: #047857;
+  transform: translateY(0);
+}
+.ctq-ai-btn:disabled {
   background: #9ca3af;
-  border-color: #9ca3af;
   cursor: not-allowed;
-  opacity: 0.7;
+  transform: none;
 }
 
-/* Inline Show button — slate */
-.ctq-inline-show {
+/* Show button - gray */
+.ctq-show-btn {
+  background: #6b7280;
+  color: white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.ctq-show-btn:hover {
   background: #4b5563;
-  color: #fff;
-  border-color: #374151;
+  transform: translateY(-1px);
 }
-.ctq-inline-show:hover  { background: #374151; }
-.ctq-inline-show:active { background: #1f2937; }
-
-/* ---- Sorter position badge ---- */
-.ctq-sort-badge {
-  display: inline-block;
-  margin-left: 8px;
-  padding: 2px 6px;
-  background: #7c3aed;
-  color: #fff;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 700;
-  font-family: system-ui, sans-serif;
-  pointer-events: none;
+.ctq-show-btn:active {
+  background: #374151;
+  transform: translateY(0);
 }
 
-/* ---- Modal overlay ---- */
-.ctq-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  z-index: 2147483646;
+/* Sorter hint badge */
+.ctq-sort-hint {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 26px;
+  height: 26px;
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  color: white;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+  font-size: 11px;
+  font-weight: bold;
+  box-shadow: 0 2px 8px rgba(109, 40, 217, 0.4);
+  z-index: 100;
+  pointer-events: none;
 }
 
-.ctq-modal-box {
-  background: #fff;
-  color: #111827;
-  width: min(720px, 92vw);
-  max-height: 85vh;
-  border-radius: 10px;
-  box-shadow: 0 20px 50px rgba(0,0,0,0.35);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.ctq-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
-  background: #f3f4f6;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.ctq-modal-title {
-  font-weight: 600;
-  font-size: 14px;
-}
-
-.ctq-modal-actions {
-  display: flex;
-  gap: 6px;
-}
-
-/* Modal-specific button overrides */
-.ctq-modal-solve {
-  background: #059669;
-  color: #fff;
-  border-color: #047857;
-}
-.ctq-modal-solve:hover    { background: #047857; }
-.ctq-modal-solve:disabled { background: #9ca3af; border-color: #9ca3af; cursor: not-allowed; }
-
-.ctq-modal-fill {
-  background: #d97706;
-  color: #fff;
-  border-color: #b45309;
-}
-.ctq-modal-fill:hover { background: #b45309; }
-
-.ctq-modal-copy {
-  background: #2563eb;
-  color: #fff;
-  border-color: #1d4ed8;
-}
-.ctq-modal-copy:hover { background: #1d4ed8; }
-
-.ctq-modal-close {
-  background: #e5e7eb;
-  color: #111827;
-  border-color: #d1d5db;
-  min-width: 30px;
-}
-.ctq-modal-close:hover { background: #d1d5db; }
-
-.ctq-modal-text {
-  flex: 1 1 auto;
-  min-height: 240px;
-  margin: 0;
-  padding: 12px 14px;
-  border: none;
-  outline: none;
-  resize: none;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 13px;
-  line-height: 1.45;
-  color: #111827;
-  background: #fff;
-  white-space: pre;
-  overflow: auto;
-}
-
-.ctq-modal-footer {
-  padding: 8px 14px;
-  border-top: 1px solid #e5e7eb;
-  background: #f9fafb;
-  min-height: 28px;
-  font-size: 12px;
-  color: #047857;
+/* Cloze selected indicator */
+.ctq-selected {
+  outline: 2px solid #8b5cf6 !important;
+  outline-offset: 2px;
 }
