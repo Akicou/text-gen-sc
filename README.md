@@ -82,10 +82,16 @@ Adds a **📋 Extrahieren** button to Moodle quiz questions (K-Prime, multichoic
 
 **Supported types:** `que.kprime`, `que.multichoice`, `que.gapselect`, `que.match`
 
-**Install (Firefox):**
-1. Open `about:debugging#/runtime/this-firefox`
-2. Click "Load Temporary Add-on..."
-3. Select `moodle-extractor/manifest.json`
+**Install (Firefox, permanent):**
+```powershell
+.\install_firefox_addons.ps1
+```
+Or on Linux/macOS:
+```bash
+chmod +x install_firefox_addons.sh
+./install_firefox_addons.sh
+```
+This packages the extension as an `.xpi` and opens Firefox's normal install prompt, so it survives restarts. Regular Firefox requires permanently installed add-ons to be signed; if Firefox blocks the local `.xpi`, sign it on AMO or use Firefox Developer Edition/Nightly/ESR with signature enforcement disabled.
 
 ### Classtime AI Solver
 
@@ -94,8 +100,8 @@ Adds **🤖 AI** button to Classtime questions. Auto-detects question type and f
 **Supported types:** multichoice, singlechoice, categorizer, sorter, cloze, opentext
 
 **Install:**
-- Chrome/Edge: Load `classtime-extension/` as unpacked extension
-- Firefox: Load `classtime-extension/manifest.json` as temporary add-on
+- Chrome/Edge: Load `classtime-extension/` as unpacked extension (it persists after browser restarts while Developer Mode remains enabled)
+- Firefox: run `./install_firefox_addons.ps1` or `./install_firefox_addons.sh` for normal persistent `.xpi` installation
 
 ---
 

@@ -17,19 +17,28 @@ as plain text, ready to be copied.
 For multichoice questions, if the page already shows the solution, the
 extracted text also marks the correct and chosen option.
 
-## Install in Firefox (temporary, for development)
+## Install in Firefox (persistent)
 
-1. Open Firefox and navigate to `about:debugging#/runtime/this-firefox`.
-2. Click **"Load Temporary Add-on..."**.
-3. Select the `manifest.json` file inside this folder (or any file inside
-   the unzipped extension folder).
-4. Open a Moodle quiz page — you should see the blue **📋 Extrahieren**
-   button in the top-right of each question.
+From the repository root, package and open the add-ons with:
 
-> Temporary add-ons are removed when Firefox restarts. For permanent
-> install you'd need to sign the extension via AMO (addons.mozilla.org) or
-> use Firefox Developer/Nightly with `xpinstall.signatures.required` set
-> to `false` in `about:config`.
+```powershell
+.\install_firefox_addons.ps1
+```
+
+Or on Linux/macOS:
+
+```bash
+chmod +x install_firefox_addons.sh
+./install_firefox_addons.sh
+```
+
+Firefox will show its normal install prompt. If accepted, the add-on is
+permanent and survives browser restarts.
+
+> Regular Firefox requires permanently installed add-ons to be signed. If it
+> blocks the local `.xpi`, sign it via AMO (addons.mozilla.org) or use Firefox
+> Developer/Nightly/ESR with `xpinstall.signatures.required` set to `false` in
+> `about:config`.
 
 ## Install from the .zip
 

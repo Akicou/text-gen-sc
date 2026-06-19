@@ -216,25 +216,38 @@
 
   // Click categorizer table cell
   function clickCategorizerCell(itemText, categoryText) {
-    const targetLabel = `${itemText.trim()}, ${categoryText.trim()}`.toLowerCase();
+    const norm = s => clean(String(s || '')).toLowerCase();
+    const itemNorm = norm(itemText);
+    const catNorm = norm(categoryText);
+    const targetLabel = `${itemNorm}, ${catNorm}`;
     log(`clickCategorizerCell: "${targetLabel}"`);
 
-    // Find checkbox by aria-label
-    const checkboxes = document.querySelectorAll('input[type=checkbox][aria-label]');
-    log(`Found ${checkboxes.length} checkboxes with aria-label`);
-
-    for (const cb of checkboxes) {
-      const label = (cb.getAttribute('aria-label') || '').toLowerCase();
-      log(`  Checking aria-label: "${label}"`);
-      if (label === targetLabel || label.includes(itemText.toLowerCase())) {
-        log('  MATCH! Clicking...');
-        // Find the MuiButtonBase parent and click it
-        const muiRoot = cb.closest('span.MuiButtonBase-root');
-        if (muiRoot) {
-          triggerClick(muiRoot, 'categorizer MuiButtonBase');
-        }
-        triggerClick(cb, 'categorizer checkbox');
+    function clickCheckboxOnce(cb, label) {
+      if (!cb) return false;
+      if (cb.checked || cb.closest('.Mui-checked')) {
+        log('  already selected:', label);
         return true;
+      }
+      // In Classtime/MUI the aria-label is on the wrapper span, not the input.
+      // Click only one React-controlled target; clicking both wrapper and input can toggle twice.
+      const target = cb.closest('span.MuiButtonBase-root') || cb;
+      return triggerClick(target, label);
+    }
+
+    // Fast path: find the choice wrapper by its aria-label, e.g. "dort, Adverb des Ortes".
+    const labelledChoices = document.querySelectorAll('[aria-label]');
+    log(`Found ${labelledChoices.length} aria-labelled elements`);
+
+    for (const choice of labelledChoices) {
+      const label = norm(choice.getAttribute('aria-label'));
+      if (!label) continue;
+      log(`  Checking aria-label: "${label}"`);
+      if (label === targetLabel) {
+        log('  MATCH by aria-label! Clicking...');
+        const cb = choice.matches('input[type=checkbox]')
+          ? choice
+          : choice.querySelector('input[type=checkbox]');
+        return clickCheckboxOnce(cb, 'categorizer choice by aria-label');
       }
     }
 
@@ -250,26 +263,15 @@
 
     log(`Table has ${headers.length} headers, ${rows.length} rows`);
 
-    const catIdx = headers.findIndex(th =>
-      th.textContent?.trim().toLowerCase() === categoryText.toLowerCase()
-    );
-    const rowIdx = rows.findIndex(tr =>
-      tr.textContent?.trim().toLowerCase().includes(itemText.toLowerCase())
-    );
+    const catIdx = headers.findIndex(th => norm(th.textContent) === catNorm);
+    const rowIdx = rows.findIndex(tr => norm(tr.querySelector('th')?.textContent) === itemNorm);
 
     log(`Category index: ${catIdx}, Row index: ${rowIdx}`);
 
     if (catIdx >= 0 && rowIdx >= 0) {
       const cell = rows[rowIdx].querySelectorAll('td')[catIdx];
-      if (cell) {
-        const cb = cell.querySelector('input[type=checkbox]');
-        if (cb) {
-          const muiRoot = cb.closest('span.MuiButtonBase-root');
-          if (muiRoot) triggerClick(muiRoot, 'categorizer MuiButtonBase (fallback)');
-          triggerClick(cb, 'categorizer checkbox (fallback)');
-          return true;
-        }
-      }
+      const cb = cell?.querySelector('input[type=checkbox]');
+      if (clickCheckboxOnce(cb, 'categorizer checkbox (fallback)')) return true;
     }
 
     logError('Categorizer cell not found');
