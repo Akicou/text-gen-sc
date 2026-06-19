@@ -9,6 +9,7 @@ import json
 import os
 import re
 from http.server import HTTPServer, BaseHTTPRequestHandler
+import httpx
 from openai import OpenAI
 
 PORT = 5923
@@ -125,7 +126,12 @@ SCHEMAS = {
             "schema": {
                 "type": "object",
                 "properties": {
-                    "correctAnswer": {"type": "integer"},
+                    # 1-indexed positions of ALL correct options (array supports
+                    # multi-select checkboxes on Exam.net AND single radio on Moodle).
+                    "correctAnswers": {
+                        "type": "array",
+                        "items": {"type": "integer"},
+                    },
                     "explanation": {"type": "string"},
                     "alternatives": {
                         "type": "array",
@@ -140,7 +146,24 @@ SCHEMAS = {
                         },
                     },
                 },
-                "required": ["correctAnswer", "explanation", "alternatives"],
+                "required": ["correctAnswers", "explanation", "alternatives"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    # Shared text-answer schema for free-text essays and short single-line answers.
+    "Text Answer": {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "text_answer",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "answer": {"type": "string"},
+                    "explanation": {"type": "string"},
+                },
+                "required": ["answer", "explanation"],
                 "additionalProperties": False,
             },
         },
@@ -211,6 +234,10 @@ def get_schema_for_type(question_type):
         return SCHEMAS["Lueckentext"]
     elif "Zuordnung" in question_type or question_type == "Match":
         return SCHEMAS["Zuordnung"]
+    # Free-text essays, short single-line / numeric answers (Exam.net)
+    lowered = question_type.lower()
+    if any(k in lowered for k in ("freitext", "free", "short", "kurz", "numeric", "number", "zahl", "text")):
+        return SCHEMAS["Text Answer"]
     return None
 
 
@@ -237,9 +264,14 @@ def build_prompt(data):
 
     elif q_type == "Multiple Choice":
         options = data.get("options", [])
+        multi = data.get("multi", False) or data.get("platform") == "exam.net"
         base += "Antwortoptionen:\n"
         for i, opt in enumerate(options, 1):
             base += f"  {i}. {opt.get('text', '')}\n"
+        base += ("Es koennen MEHRERE Antworten richtig sein (Kontrollkaestchen)."
+                 if multi else "Genau EINE Antwort ist richtig.") + "\n"
+        base += ("Gib als correctAnswers die 1-basierten Indices ALLER richtigen Optionen an. "
+                 "Beispiel: Wenn Antwort 1 richtig ist, muss correctAnswers = [1] sein, niemals [] oder 0.\n")
 
     elif "ückentext" in q_type or "Lueckentext" in q_type:
         gaps = data.get("gaps", [])
@@ -255,6 +287,19 @@ def build_prompt(data):
         base += "Aussagen:\n"
         for i, item in enumerate(items, 1):
             base += f"  {i}. {item.get('statement', '')}\n"
+
+    elif q_type.lower() in ("freitext", "free text") or "freitext" in q_type.lower():
+        base += (
+            "Dies ist eine Freitext-Frage. Schreibe eine vollstaendige, sachlich richtige "
+            "Antwort als zusammenhaengenden Text. Setze die fertige Antwort in das Feld 'answer'.\n"
+        )
+
+    elif "short" in q_type.lower() or "kurz" in q_type.lower() or "numeric" in q_type.lower():
+        base += (
+            "Dies ist eine Kurze-Antwort-Frage. Antworte extrem kurz und praezise (meist ein "
+            "einziges Wort oder eine Zahl, ohne Erklaerung im Antwortfeld). "
+            "Schreibe zusaetzlich eine kurze Erklaerung in 'explanation'.\n"
+        )
 
     return base
 
@@ -292,12 +337,51 @@ def normalize_result(question_type, raw):
             })
         return {"answers": normalized}
 
-    # Multiple Choice: expect { correctAnswer (int), explanation, alternatives }
+    # Multiple Choice: support both old single-answer outputs and new multi-answer arrays.
+    # Always emit BOTH correctAnswers[] and legacy correctAnswer so Moodle + Exam.net both work.
     if question_type == "Multiple Choice":
-        ca = raw.get("correctAnswer") or raw.get("correct_answer") or raw.get("correct") or raw.get("answer") or 0
+        explanation = raw.get("explanation") or raw.get("reasoning") or raw.get("reason", "")
+        raw_list = raw.get("correctAnswers") or raw.get("correct_answers") or raw.get("answers") or []
+
+        # Old/legacy model fields.
+        if not raw_list:
+            legacy = raw.get("correctAnswer") or raw.get("correct_answer") or raw.get("correct") or raw.get("answer")
+            if legacy is not None:
+                raw_list = [legacy]
+
+        def _to_ints(values):
+            out = []
+            if isinstance(values, (str, int)):
+                values = [values]
+            for v in values or []:
+                try:
+                    n = int(str(v).strip())
+                    if n > 0 and n not in out:
+                        out.append(n)
+                except (TypeError, ValueError):
+                    pass
+            return out
+
+        ints = _to_ints(raw_list)
+
+        # Last-resort parser: explanation often says "Richtig ist nur Antwort 1".
+        if not ints and explanation:
+            patterns = [
+                r"richtig(?:e|en)?\s+(?:ist|sind)\s+(?:nur\s+)?(?:antwort|option)\s*(\d+)",
+                r"(?:antwort|option)\s*(\d+)\s+(?:ist|sind)\s+(?:die\s+)?(?:richtige|richtig|korrekte|korrekt)",
+                r"correct\s+(?:answer|option)\s*(?:is|:)\s*(\d+)",
+                r"(?:answer|option)\s*(\d+)\s+is\s+correct",
+            ]
+            for pat in patterns:
+                m = re.search(pat, explanation, flags=re.IGNORECASE)
+                if m:
+                    ints = [int(m.group(1))]
+                    break
+
         return {
-            "correctAnswer": int(ca) if not isinstance(ca, int) else ca,
-            "explanation": raw.get("explanation") or raw.get("reasoning") or raw.get("reason", ""),
+            "correctAnswers": ints,
+            "correctAnswer": ints[0] if ints else 0,
+            "explanation": explanation,
             "alternatives": raw.get("alternatives") or raw.get("wrong_answers") or [],
         }
 
@@ -312,6 +396,16 @@ def normalize_result(question_type, raw):
                 "explanation": item.get("explanation") or item.get("reasoning") or item.get("reason") or "",
             })
         return {"matches": normalized}
+
+    # Free-text and short-answer questions -> { answer, explanation }
+    lowered = question_type.lower()
+    if any(k in lowered for k in ("freitext", "free", "short", "kurz", "numeric", "number", "zahl")):
+        return {
+            "answer": (raw.get("answer") or raw.get("text") or raw.get("response")
+                       or raw.get("solution") or raw.get("value") or ""),
+            "explanation": (raw.get("explanation") or raw.get("reasoning")
+                            or raw.get("reason") or ""),
+        }
 
     return raw
 
@@ -348,7 +442,8 @@ def query_ai_structured(question_data):
         if not api_key:
             return {"error": f"Missing API key: {provider['env_key']}"}
 
-    client = OpenAI(api_key=api_key, base_url=provider["base_url"])
+    client = OpenAI(api_key=api_key, base_url=provider["base_url"],
+                     http_client=httpx.Client(verify=False))
 
     context = get_context()
     q_type = question_data.get("type", "")
