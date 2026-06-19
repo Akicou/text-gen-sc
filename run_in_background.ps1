@@ -20,7 +20,7 @@ if (-not (Test-Path $VenvDir)) {
     python -m venv $VenvDir
     & "$VenvDir\Scripts\Activate.ps1"
     Write-Host "Installing dependencies..."
-    $Requirements = @("pyperclip", "pydirectinput", "keyboard", "openai", "requests", "Pillow")
+    $Requirements = @("pyperclip", "keyboard", "openai", "requests", "Pillow")
     pip install @Requirements
 } else {
     & "$VenvDir\Scripts\Activate.ps1"

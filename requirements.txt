@@ -1,6 +1,5 @@
 openai
 requests
 pyperclip
-pydirectinput
 keyboard
 Pillow

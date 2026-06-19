@@ -1,5 +1,4 @@
 import pyperclip
-import pydirectinput
 import keyboard
 import os
 import sys
@@ -46,6 +45,10 @@ selected_provider = None
 api_key = None
 background_mode = "--background" in sys.argv
 _control_popup_window = None
+IS_WINDOWS = sys.platform.startswith("win")
+IS_MAC = sys.platform == "darwin"
+COPY_SHORTCUT = "command+c" if IS_MAC else "ctrl+c"
+PASTE_SHORTCUT = "command+v" if IS_MAC else "ctrl+v"
 
 
 def load_env():
@@ -285,7 +288,7 @@ def query_ai(prompt):
 
 
 def get_selected_text():
-    keyboard.send("ctrl+c")
+    keyboard.send(COPY_SHORTCUT)
     time.sleep(0.1)
     return pyperclip.paste()
 
@@ -305,13 +308,13 @@ def handle_ctrl_c():
         prompt = f"Follow this instruction: {instruction}"
         response = query_ai(prompt)
         pyperclip.copy(response)
-        keyboard.send("ctrl+v")
+        keyboard.send(PASTE_SHORTCUT)
     elif selected_text.lower().startswith("grammar>"):
         text_to_correct = selected_text[8:].strip()
         prompt = f"Correct the grammar in this text: {text_to_correct}"
         response = query_ai(prompt)
         pyperclip.copy(response)
-        keyboard.send("ctrl+v")
+        keyboard.send(PASTE_SHORTCUT)
     else:
         print("Selected text does not start with 'instruction>' or 'grammar>'.")
 
@@ -416,26 +419,35 @@ _screenshot_last_done = 0
 
 
 def get_monitor_rect_from_mouse():
-    """Return (left, top, right, bottom) of the monitor under the mouse cursor."""
-    point = wintypes.POINT()
-    ctypes.windll.user32.GetCursorPos(ctypes.byref(point))
+    """Return (left, top, right, bottom) for the active screenshot overlay."""
+    if IS_WINDOWS:
+        point = wintypes.POINT()
+        ctypes.windll.user32.GetCursorPos(ctypes.byref(point))
 
-    class MONITORINFOEXW(ctypes.Structure):
-        _fields_ = [
-            ("cbSize", wintypes.DWORD),
-            ("rcMonitor", wintypes.RECT),
-            ("rcWork", wintypes.RECT),
-            ("dwFlags", wintypes.DWORD),
-            ("szDevice", ctypes.c_wchar * 32),
-        ]
+        class MONITORINFOEXW(ctypes.Structure):
+            _fields_ = [
+                ("cbSize", wintypes.DWORD),
+                ("rcMonitor", wintypes.RECT),
+                ("rcWork", wintypes.RECT),
+                ("dwFlags", wintypes.DWORD),
+                ("szDevice", ctypes.c_wchar * 32),
+            ]
 
-    hmonitor = ctypes.windll.user32.MonitorFromPoint(point, 2)  # MONITOR_DEFAULTTONEAREST
-    info = MONITORINFOEXW()
-    info.cbSize = ctypes.sizeof(MONITORINFOEXW)
-    ctypes.windll.user32.GetMonitorInfoW(hmonitor, ctypes.byref(info))
+        hmonitor = ctypes.windll.user32.MonitorFromPoint(point, 2)  # MONITOR_DEFAULTTONEAREST
+        info = MONITORINFOEXW()
+        info.cbSize = ctypes.sizeof(MONITORINFOEXW)
+        ctypes.windll.user32.GetMonitorInfoW(hmonitor, ctypes.byref(info))
 
-    r = info.rcMonitor
-    return (r.left, r.top, r.right, r.bottom)
+        r = info.rcMonitor
+        return (r.left, r.top, r.right, r.bottom)
+
+    # macOS/Linux fallback: use the primary screen bounds.
+    root = tk.Tk()
+    root.withdraw()
+    width = root.winfo_screenwidth()
+    height = root.winfo_screenheight()
+    root.destroy()
+    return (0, 0, width, height)
 
 
 def capture_region(bbox):
@@ -495,12 +507,21 @@ def query_ai_vision(image_base64, prompt):
         return ""
 
 
-def open_in_notepad(text):
-    """Write text to a temp file and open it in Notepad."""
+def open_response_file(text):
+    """Write text to a temp file and open it in the system text viewer."""
     fd, path = tempfile.mkstemp(suffix=".txt", prefix="ai_response_")
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         f.write(text)
-    subprocess.Popen(["notepad.exe", path])
+
+    if IS_WINDOWS:
+        subprocess.Popen(["notepad.exe", path])
+    elif IS_MAC:
+        subprocess.Popen(["open", "-t", path])
+    else:
+        try:
+            subprocess.Popen(["xdg-open", path])
+        except FileNotFoundError:
+            print(f"AI response saved to: {path}")
 
 
 class ScreenshotOverlay:
@@ -638,8 +659,8 @@ def handle_alt_t():
             print("No response from AI.")
             return
 
-        open_in_notepad(response)
-        print("Screenshot analysis opened in Notepad.")
+        open_response_file(response)
+        print("Screenshot analysis opened in a text viewer.")
 
     except Exception as e:
         print(f"Error during screenshot analysis: {e}")
@@ -665,7 +686,7 @@ def main():
     if background_mode:
         # Load previous config instead of asking
         if not load_config():
-            print("No valid configuration found. Please run run.ps1 interactively first.")
+            print("No valid configuration found. Please run run.sh/run.ps1 interactively first.")
             sys.exit(1)
         print(f"Background mode started with {PROVIDERS[selected_provider]['name']} / {selected_model}")
     else:

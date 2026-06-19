@@ -11,6 +11,10 @@ __pycache__/
 dist/
 build/
 
+# Runtime
+logs/
+.pids/
+
 # Data
 data/
 

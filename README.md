@@ -29,16 +29,23 @@ A hotkey-driven desktop assistant that processes selected text using multiple AI
 
 ### Quick Start
 
-**Linux / macOS:**
+**Linux / macOS (interactive):**
 ```bash
-chmod +x run.sh
+chmod +x run.sh run_in_background.sh
 ./run.sh
+```
+
+**Linux / macOS (background, after one interactive run):**
+```bash
+./run_in_background.sh
 ```
 
 **Windows (PowerShell):**
 ```powershell
 .\run.ps1
 ```
+
+On macOS, grant Accessibility/Input Monitoring permission to Terminal (or your shell app) if global hotkeys do not work.
 
 ### Hotkeys
 
@@ -47,6 +54,7 @@ chmod +x run.sh
 | `CTRL+C` | Copy selected text and process it with AI |
 | `ALT+U` | Switch provider and model |
 | `ALT+Y` | Quit the program |
+| `ALT+P` | Open the control menu |
 
 ### Text Commands
 
@@ -122,7 +130,6 @@ Output in `dist/`.
 
 ```
 pyperclip
-pydirectinput
 keyboard
 openai
 requests
