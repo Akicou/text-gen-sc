@@ -9,7 +9,7 @@ VENV_PYTHON="$VENV_DIR/bin/python"
 CONFIG_PATH="$SCRIPT_DIR/.server_config.json"
 LOG_DIR="$SCRIPT_DIR/logs"
 PID_DIR="$SCRIPT_DIR/.pids"
-FALLBACK_REQUIREMENTS=(pyperclip keyboard openai requests Pillow)
+FALLBACK_REQUIREMENTS=(pyperclip keyboard pynput openai requests Pillow)
 
 find_python() {
     local candidate path

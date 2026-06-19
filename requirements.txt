@@ -2,4 +2,5 @@ openai
 requests
 pyperclip
 keyboard
+pynput
 Pillow

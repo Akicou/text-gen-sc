@@ -131,6 +131,7 @@ Output in `dist/`.
 ```
 pyperclip
 keyboard
+pynput
 openai
 requests
 Pillow

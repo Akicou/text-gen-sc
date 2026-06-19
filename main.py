@@ -1,7 +1,16 @@
 import pyperclip
-import keyboard
 import os
 import sys
+
+try:
+    import keyboard
+except Exception:
+    keyboard = None
+
+try:
+    from pynput import keyboard as pynput_keyboard
+except Exception:
+    pynput_keyboard = None
 from openai import OpenAI
 import time
 import subprocess
@@ -49,6 +58,7 @@ IS_WINDOWS = sys.platform.startswith("win")
 IS_MAC = sys.platform == "darwin"
 COPY_SHORTCUT = "command+c" if IS_MAC else "ctrl+c"
 PASTE_SHORTCUT = "command+v" if IS_MAC else "ctrl+v"
+_hotkey_listener = None
 
 
 def load_env():
@@ -287,8 +297,23 @@ def query_ai(prompt):
         return ""
 
 
+def send_shortcut(shortcut):
+    """Send a keyboard shortcut using pynput on macOS and keyboard elsewhere."""
+    if IS_MAC:
+        if pynput_keyboard is None:
+            raise RuntimeError("pynput is required on macOS. Run: venv/bin/python -m pip install pynput")
+        controller = pynput_keyboard.Controller()
+        modifier_name, key_char = shortcut.split("+", 1)
+        modifier = pynput_keyboard.Key.cmd if modifier_name == "command" else pynput_keyboard.Key.ctrl
+        with controller.pressed(modifier):
+            controller.press(key_char)
+            controller.release(key_char)
+    else:
+        keyboard.send(shortcut)
+
+
 def get_selected_text():
-    keyboard.send(COPY_SHORTCUT)
+    send_shortcut(COPY_SHORTCUT)
     time.sleep(0.1)
     return pyperclip.paste()
 
@@ -308,13 +333,13 @@ def handle_ctrl_c():
         prompt = f"Follow this instruction: {instruction}"
         response = query_ai(prompt)
         pyperclip.copy(response)
-        keyboard.send(PASTE_SHORTCUT)
+        send_shortcut(PASTE_SHORTCUT)
     elif selected_text.lower().startswith("grammar>"):
         text_to_correct = selected_text[8:].strip()
         prompt = f"Correct the grammar in this text: {text_to_correct}"
         response = query_ai(prompt)
         pyperclip.copy(response)
-        keyboard.send(PASTE_SHORTCUT)
+        send_shortcut(PASTE_SHORTCUT)
     else:
         print("Selected text does not start with 'instruction>' or 'grammar>'.")
 
@@ -566,13 +591,16 @@ class ScreenshotOverlay:
 
         self.root.focus_force()
 
-        # Global escape hook as fallback in case tkinter doesn't have focus
-        self._escape_hook = keyboard.on_press_key("esc", lambda _: self.root.after(0, self._cancel))
+        # Global escape hook as fallback in case tkinter doesn't have focus.
+        self._escape_hook = None
+        if keyboard is not None and not IS_MAC:
+            self._escape_hook = keyboard.on_press_key("esc", lambda _: self.root.after(0, self._cancel))
 
         self.root.mainloop()
 
         # Clean up the global hook
-        keyboard.unhook(self._escape_hook)
+        if self._escape_hook is not None:
+            keyboard.unhook(self._escape_hook)
 
         return self.result
 
@@ -669,6 +697,64 @@ def handle_alt_t():
         _screenshot_active = False
 
 
+def register_hotkeys():
+    """Register global hotkeys. Uses pynput on macOS because keyboard can fail to map keys there."""
+    global _hotkey_listener
+
+    if IS_MAC:
+        if pynput_keyboard is None:
+            raise RuntimeError("pynput is required on macOS. Run: venv/bin/python -m pip install pynput")
+
+        pressed = set()
+
+        def normalize(key):
+            if key in (pynput_keyboard.Key.ctrl, pynput_keyboard.Key.ctrl_l, pynput_keyboard.Key.ctrl_r):
+                return "ctrl"
+            if key in (pynput_keyboard.Key.alt, pynput_keyboard.Key.alt_l, pynput_keyboard.Key.alt_r):
+                return "alt"
+            if key == pynput_keyboard.Key.esc:
+                return "esc"
+            if hasattr(key, "char") and key.char:
+                return key.char.lower()
+            return str(key)
+
+        def on_press(key):
+            pressed.add(normalize(key))
+            if "ctrl" in pressed and "c" in pressed:
+                handle_ctrl_c()
+            elif "alt" in pressed and "t" in pressed:
+                handle_alt_t()
+            elif "alt" in pressed and "u" in pressed:
+                handle_alt_u()
+            elif "alt" in pressed and "y" in pressed:
+                handle_alt_y()
+            elif "alt" in pressed and "p" in pressed:
+                show_control_popup()
+
+        def on_release(key):
+            pressed.discard(normalize(key))
+
+        _hotkey_listener = pynput_keyboard.Listener(on_press=on_press, on_release=on_release)
+        _hotkey_listener.start()
+        return
+
+    if keyboard is None:
+        raise RuntimeError("keyboard is required. Run: pip install keyboard")
+
+    keyboard.add_hotkey("ctrl+c", handle_ctrl_c)
+    keyboard.add_hotkey("alt+t", handle_alt_t)
+    keyboard.add_hotkey("alt+u", handle_alt_u)
+    keyboard.add_hotkey("alt+y", handle_alt_y)
+    keyboard.add_hotkey("alt+p", show_control_popup)
+
+
+def wait_for_hotkeys():
+    if IS_MAC:
+        while True:
+            time.sleep(3600)
+    keyboard.wait()
+
+
 def setup_environment():
     if not os.path.exists("./data"):
         os.makedirs("./data")
@@ -693,11 +779,7 @@ def main():
         select_provider()
         select_model()
 
-    keyboard.add_hotkey("ctrl+c", handle_ctrl_c)
-    keyboard.add_hotkey("alt+t", handle_alt_t)
-    keyboard.add_hotkey("alt+u", handle_alt_u)
-    keyboard.add_hotkey("alt+y", handle_alt_y)
-    keyboard.add_hotkey("alt+p", show_control_popup)
+    register_hotkeys()
 
     if not background_mode:
         print(
@@ -708,7 +790,7 @@ def main():
             "  ALT+Y   - Quit\n"
             "  ALT+P   - Control menu"
         )
-    keyboard.wait()
+    wait_for_hotkeys()
 
 
 if __name__ == "__main__":

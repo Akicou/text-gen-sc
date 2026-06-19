@@ -6,7 +6,7 @@ cd "$SCRIPT_DIR"
 
 VENV_DIR="$SCRIPT_DIR/venv"
 VENV_PYTHON="$VENV_DIR/bin/python"
-FALLBACK_REQUIREMENTS=(pyperclip keyboard openai requests Pillow)
+FALLBACK_REQUIREMENTS=(pyperclip keyboard pynput openai requests Pillow)
 SERVER_PID=""
 
 find_python() {
