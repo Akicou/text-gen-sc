@@ -54,11 +54,13 @@ selected_provider = None
 api_key = None
 background_mode = "--background" in sys.argv
 _control_popup_window = None
+_control_popup_process = None
 IS_WINDOWS = sys.platform.startswith("win")
 IS_MAC = sys.platform == "darwin"
 COPY_SHORTCUT = "command+c" if IS_MAC else "ctrl+c"
 PASTE_SHORTCUT = "command+v" if IS_MAC else "ctrl+v"
 _hotkey_listener = None
+_last_control_hotkey = 0
 
 
 def load_env():
@@ -373,8 +375,61 @@ def handle_alt_y():
 
 
 def show_control_popup():
-    """Show a small popup window with quit button (triggered by ALT+P). Toggles if already open."""
-    global _control_popup_window
+    """Show a small popup window with quit button. Toggles if already open."""
+    global _control_popup_window, _control_popup_process
+
+    if IS_MAC:
+        if _control_popup_process is not None and _control_popup_process.poll() is None:
+            _control_popup_process.terminate()
+            _control_popup_process = None
+            return
+
+        provider_name = PROVIDERS.get(selected_provider, {}).get("name", "Unknown")
+        popup_code = r'''
+import os
+import signal
+import sys
+import tkinter as tk
+
+provider = sys.argv[1]
+model = sys.argv[2]
+parent_pid = int(sys.argv[3])
+
+root = tk.Tk()
+root.title("AI Assistant Control")
+root.geometry("340x170")
+root.resizable(False, False)
+root.attributes("-topmost", True)
+try:
+    root.lift()
+    root.focus_force()
+except Exception:
+    pass
+
+info_frame = tk.Frame(root)
+info_frame.pack(pady=12, padx=12, fill=tk.X)
+tk.Label(info_frame, text=f"Provider: {provider}", font=("Arial", 11)).pack(anchor=tk.W)
+tk.Label(info_frame, text=f"Model: {model}", font=("Arial", 11)).pack(anchor=tk.W)
+tk.Label(info_frame, text="Status: Running", fg="green", font=("Arial", 11, "bold")).pack(anchor=tk.W, pady=(6, 0))
+
+def quit_assistant():
+    try:
+        os.kill(parent_pid, signal.SIGTERM)
+    except Exception:
+        pass
+    root.destroy()
+
+btn_frame = tk.Frame(root)
+btn_frame.pack(pady=10)
+tk.Button(btn_frame, text="Quit Assistant", command=quit_assistant, bg="#ff6b6b", fg="white", width=14).pack(side=tk.LEFT, padx=5)
+tk.Button(btn_frame, text="Close", command=root.destroy, width=10).pack(side=tk.LEFT, padx=5)
+root.protocol("WM_DELETE_WINDOW", root.destroy)
+root.mainloop()
+'''
+        _control_popup_process = subprocess.Popen(
+            [sys.executable, "-c", popup_code, provider_name, selected_model or "Not set", str(os.getpid())]
+        )
+        return
 
     # If window exists and is open, close it (toggle behavior)
     if _control_popup_window is not None:
@@ -719,6 +774,7 @@ def register_hotkeys():
             return str(key)
 
         def on_press(key):
+            global _last_control_hotkey
             pressed.add(normalize(key))
             if "ctrl" in pressed and "c" in pressed:
                 handle_ctrl_c()
@@ -728,8 +784,11 @@ def register_hotkeys():
                 handle_alt_u()
             elif "alt" in pressed and "y" in pressed:
                 handle_alt_y()
-            elif "alt" in pressed and "p" in pressed:
-                show_control_popup()
+            elif "ctrl" in pressed and "alt" in pressed and ("p" in pressed or "π" in pressed):
+                now = time.time()
+                if now - _last_control_hotkey > 0.8:
+                    _last_control_hotkey = now
+                    show_control_popup()
 
         def on_release(key):
             pressed.discard(normalize(key))
@@ -788,7 +847,8 @@ def main():
             "  ALT+T   - Screenshot analysis\n"
             "  ALT+U   - Change provider/model\n"
             "  ALT+Y   - Quit\n"
-            "  ALT+P   - Control menu"
+            "  CTRL+OPTION+P - Control menu (macOS)\n"
+            "  ALT+P   - Control menu (Windows/Linux)"
         )
     wait_for_hotkeys()
 

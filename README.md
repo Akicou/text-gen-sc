@@ -54,7 +54,8 @@ On macOS, grant Accessibility/Input Monitoring permission to Terminal (or your s
 | `CTRL+C` | Copy selected text and process it with AI |
 | `ALT+U` | Switch provider and model |
 | `ALT+Y` | Quit the program |
-| `ALT+P` | Open the control menu |
+| `ALT+P` | Open the control menu on Windows/Linux |
+| `CTRL+OPTION+P` | Open/close the control menu on macOS |
 
 ### Text Commands
 
