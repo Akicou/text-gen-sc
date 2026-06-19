@@ -1162,43 +1162,13 @@
 
     const aiBtn = document.createElement('button');
     aiBtn.type = 'button';
-    aiBtn.className = 'ctq-btn ctq-ai-btn';
+    aiBtn.className = 'ctq-ai-btn';
     aiBtn.title = 'AI solve & auto-fill';
-    aiBtn.textContent = '🤖 AI';
-    aiBtn.style.cssText = `
-      font-family: system-ui, sans-serif;
-      font-size: 12px;
-      font-weight: 500;
-      padding: 5px 12px;
-      border-radius: 6px;
-      border: none;
-      cursor: pointer;
-      background: #10b981;
-      color: white;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-    `;
-    aiBtn.onmouseover = () => aiBtn.style.background = '#059669';
-    aiBtn.onmouseout = () => aiBtn.style.background = '#10b981';
 
     const showBtn = document.createElement('button');
     showBtn.type = 'button';
-    showBtn.className = 'ctq-btn ctq-show-btn';
+    showBtn.className = 'ctq-show-btn';
     showBtn.title = 'Show details';
-    showBtn.textContent = '👁 Show';
-    showBtn.style.cssText = `
-      font-family: system-ui, sans-serif;
-      font-size: 12px;
-      font-weight: 500;
-      padding: 5px 12px;
-      border-radius: 6px;
-      border: none;
-      cursor: pointer;
-      background: #6b7280;
-      color: white;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-    `;
-    showBtn.onmouseover = () => showBtn.style.background = '#4b5563';
-    showBtn.onmouseout = () => showBtn.style.background = '#6b7280';
 
     group.appendChild(aiBtn);
     group.appendChild(showBtn);
@@ -1235,13 +1205,11 @@
     aiBtn.onclick = async () => {
       log('AI button clicked');
       if (aiBtn.disabled) return;
-      const orig = aiBtn.textContent;
       aiBtn.disabled = true;
-      aiBtn.textContent = '⏳';
+      aiBtn.classList.add('ctq-loading');
 
       try {
         const data = extractQuestion();
-        // Transform to Moodle-compatible format for the backend
         const moodleData = toMoodleFormat(data);
         log('Sending to background script (Moodle format):', moodleData);
 
@@ -1253,18 +1221,16 @@
         const moodleResult = reply.data;
         if (moodleResult.error) throw new Error(moodleResult.error);
 
-        // Transform Moodle response back to Classtime format for autoFill
         const result = fromMoodleResponse(moodleResult, data.type, data.options);
         log('Calling autoFill with transformed result');
-        const filled = autoFill(data, result);
-        log('AutoFill result:', filled);
+        autoFill(data, result);
 
-        aiBtn.textContent = filled > 0 ? '✅' : '⚠️';
-        setTimeout(() => { aiBtn.textContent = orig; aiBtn.disabled = false; }, 2000);
+        aiBtn.classList.remove('ctq-loading');
+        aiBtn.disabled = false;
       } catch (err) {
         logError('AI button error:', err);
-        aiBtn.textContent = '❌';
-        setTimeout(() => { aiBtn.textContent = orig; aiBtn.disabled = false; }, 3000);
+        aiBtn.classList.remove('ctq-loading');
+        setTimeout(() => { aiBtn.disabled = false; }, 3000);
       }
     };
 

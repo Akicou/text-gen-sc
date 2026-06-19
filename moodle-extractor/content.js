@@ -576,13 +576,16 @@
   function addButtonTo(qEl) {
     const infoEl = qEl.querySelector(':scope > .info');
     if (!infoEl) return;
-    if (infoEl.querySelector(`.${BTN_CLASS}`)) return; // already added
+    if (infoEl.parentNode.querySelector('.mqe-btn-row')) return;
+
+    const row = document.createElement('div');
+    row.className = 'mqe-btn-row';
 
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = BTN_CLASS;
     btn.title = 'Fragetext & Optionen extrahieren';
-    btn.textContent = '📋 Extrahieren';
+    btn.textContent = '';
 
     btn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -597,23 +600,20 @@
       }
     });
 
-    infoEl.appendChild(btn);
+    row.appendChild(btn);
 
-    // Inline AI button — solves & auto-fills without opening the modal
     const aiBtn = document.createElement('button');
     aiBtn.type = 'button';
     aiBtn.className = 'mqe-ai-btn';
     aiBtn.title = 'AI lösen & ausfüllen (ohne Popup)';
-    aiBtn.textContent = '🤖 AI';
 
     aiBtn.addEventListener('click', async (e) => {
       e.preventDefault();
       e.stopPropagation();
       if (aiBtn.disabled) return;
 
-      const originalText = aiBtn.textContent;
       aiBtn.disabled = true;
-      aiBtn.textContent = '⏳';
+      aiBtn.classList.add('mqe-loading');
 
       try {
         const questionData = extractQuestion(qEl);
@@ -631,25 +631,22 @@
           throw new Error(result.error);
         }
 
-        const filled = autoFill(qEl, questionData, result);
-        aiBtn.textContent = filled > 0 ? '✅' : '⚠️';
-        setTimeout(() => {
-          aiBtn.textContent = originalText;
-          aiBtn.disabled = false;
-        }, 2000);
+        autoFill(qEl, questionData, result);
+        aiBtn.classList.remove('mqe-loading');
+        aiBtn.disabled = false;
       } catch (err) {
         console.error('[MoodleExtractor] AI inline error:', err);
-        aiBtn.textContent = '❌';
+        aiBtn.classList.remove('mqe-loading');
         aiBtn.title = err.message || 'Fehler';
         setTimeout(() => {
-          aiBtn.textContent = originalText;
           aiBtn.title = 'AI lösen & ausfüllen (ohne Popup)';
           aiBtn.disabled = false;
         }, 3000);
       }
     });
 
-    infoEl.appendChild(aiBtn);
+    row.appendChild(aiBtn);
+    infoEl.after(row);
   }
 
   function scan(root = document) {

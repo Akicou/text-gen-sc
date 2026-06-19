@@ -1,47 +1,53 @@
-/* Extract button lives inside .info, only visible on question hover */
-.mqe-extract-btn {
-  display: none;
-  margin-left: 8px;
-  padding: 3px 8px;
-  font-size: 12px;
-  font-family: system-ui, -apple-system, Segoe UI, sans-serif;
-  color: #fff;
-  background: #2563eb;
-  border: 1px solid #1d4ed8;
-  border-radius: 6px;
-  cursor: pointer;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
-  line-height: 1.2;
-  vertical-align: middle;
-  transition: background 0.15s ease;
+/* Button wrapper sits below .info */
+.mqe-btn-row {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
 }
-div.que:hover > .info .mqe-extract-btn { display: inline-block; }
-.mqe-extract-btn:hover  { background: #1d4ed8; }
-.mqe-extract-btn:active { background: #1e40af; }
-.mqe-extract-btn:focus  { outline: 2px solid #93c5fd; outline-offset: 1px; }
 
-/* Inline AI solve button */
+/* Shared style for both buttons */
+.mqe-extract-btn,
 .mqe-ai-btn {
-  display: none;
-  margin-left: 4px;
-  padding: 3px 8px;
-  font-size: 12px;
-  font-family: system-ui, -apple-system, Segoe UI, sans-serif;
-  color: #fff;
-  background: #059669;
-  border: 1px solid #047857;
-  border-radius: 6px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  font-size: 0;
+  color: transparent;
+  background: #fff;
+  border: 1px solid #fff;
+  border-radius: 50%;
   cursor: pointer;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
-  line-height: 1.2;
-  vertical-align: middle;
-  transition: background 0.15s ease;
+  box-shadow: none;
+  position: relative;
+  transition: none;
 }
-div.que:hover > .info .mqe-ai-btn { display: inline-block; }
-.mqe-ai-btn:hover  { background: #047857; }
-.mqe-ai-btn:active { background: #065f46; }
-.mqe-ai-btn:focus  { outline: 2px solid #6ee7b7; outline-offset: 1px; }
-.mqe-ai-btn:disabled { background: #9ca3af; border-color: #9ca3af; cursor: not-allowed; opacity: 0.7; }
+
+.mqe-extract-btn::after,
+.mqe-ai-btn::after {
+  content: '';
+  display: none;
+  position: absolute;
+  inset: 4px;
+  border: 2px solid #d1d5db;
+  border-top-color: #6b7280;
+  border-radius: 50%;
+  animation: mqe-spin 0.6s linear infinite;
+}
+
+.mqe-extract-btn:hover::after,
+.mqe-ai-btn:hover::after {
+  display: block;
+}
+
+@keyframes mqe-spin {
+  to { transform: rotate(360deg); }
+}
+
+.mqe-extract-btn:focus,
+.mqe-ai-btn:focus { outline: none; }
+.mqe-ai-btn:disabled { cursor: not-allowed; opacity: 0.5; }
+.mqe-ai-btn:disabled::after { border-top-color: #9ca3af; }
+.mqe-loading::after { display: block !important; }
 
 /* Modal overlay */
 .mqe-modal-overlay {
