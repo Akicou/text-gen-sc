@@ -496,6 +496,7 @@
     const tests = [
       ['categorizer', document.querySelector('[data-testid="student-categorizer-answers-form"]')],
       ['cloze', document.querySelector('[data-testid="highlight-text-preview"]')],
+      ['fillgaps', document.querySelector('[data-testid="fitg-pointer-blank"]')],
       ['sorter', document.querySelector('[data-testid="student-sorter-choice"]')],
       ['opentext', document.querySelector('[data-testid="student-answer-area"], [data-testid="essay-editor-wrapper"]')],
     ];
@@ -607,6 +608,31 @@
     };
   }
 
+  // Free-text gaps ("Freitextlücke"): each gap is a textarea inside fitg-pointer-blank.
+  function extractFillGaps() {
+    const list = document.querySelector('[data-testid="questions-answers-list"]');
+    const copy = list.cloneNode(true);
+    copy.querySelectorAll('[data-testid="fitg-pointer-blank"]').forEach((b, i) =>
+      b.replaceWith(` [Lücke ${i + 1}] `));
+    const gapCount = list.querySelectorAll('[data-testid="fitg-pointer-blank"]').length;
+    log(`extractFillGaps: ${gapCount} gaps`);
+    return {
+      type: 'Fill Gaps',
+      title: getQuestionTitle(),
+      description: getQuestionDescription(),
+      fullText: getText(copy),
+      gapCount
+    };
+  }
+
+  // Set a React-controlled input/textarea value so React's onChange sees it.
+  function setReactValue(el, value) {
+    const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
   function extractQuestion() {
     log('=== extractQuestion called ===');
     const type = detectQuestionType();
@@ -620,6 +646,7 @@
       case 'opentext': result = extractOpentext(); break;
       case 'sorter': result = extractSorter(); break;
       case 'cloze': result = extractCloze(); break;
+      case 'fillgaps': result = extractFillGaps(); break;
       default: result = { type: 'Unknown', title: getQuestionTitle() };
     }
 
@@ -683,6 +710,13 @@
           options: g.choices || [],
           selected: null
         }));
+        break;
+
+      case 'Fill Gaps':
+        // Server treats "...ückentext..." as gap questions; empty options = free input.
+        result.type = 'Lückentext (Freitext)';
+        result.questionText += `\n\nText:\n${data.fullText}`;
+        result.gaps = Array.from({ length: data.gapCount }, (_, i) => ({ index: i + 1, options: [] }));
         break;
 
       case 'Sorter':
@@ -781,6 +815,16 @@
         }
         break;
 
+      case 'Fill Gaps':
+        if (moodleResult.gaps) {
+          result.fills = moodleResult.gaps.map(g => ({
+            index: (g.gapNumber || g.index || 1) - 1,
+            text: g.answer || ''
+          }));
+          delete result.gaps;
+        }
+        break;
+
       case 'Sorter':
         // Moodle returns order array, already compatible
         break;
@@ -866,6 +910,17 @@
           annotateSorter(sortOrder);
           filled = sortOrder.length;
         }
+        break;
+      }
+      case 'Fill Gaps': {
+        const blanks = document.querySelectorAll('[data-testid="fitg-pointer-blank"]');
+        (result.fills || []).forEach(({ index, text }) => {
+          const ta = blanks[index]?.querySelector('textarea, input');
+          if (!ta || !text) return;
+          setReactValue(ta, text);
+          log(`Gap ${index + 1} = "${text}"`);
+          filled++;
+        });
         break;
       }
       case 'Cloze': {

@@ -305,7 +305,14 @@ def build_prompt(data):
         base += "Luecken:\n"
         for g in gaps:
             opts_list = g.get("options", [])
-            base += f"  Luecke {g.get('index', '?')}: Optionen = {', '.join(opts_list)}\n"
+            if opts_list:
+                base += f"  Luecke {g.get('index', '?')}: Optionen = {', '.join(opts_list)}\n"
+            else:
+                base += f"  Luecke {g.get('index', '?')}: freie Eingabe\n"
+        if gaps and not any(g.get("options") for g in gaps):
+            base += ("Die Luecken sind im Text als [Luecke N] markiert. Gib pro Luecke nur das "
+                     "fehlende Wort oder die kurze Wortgruppe an, passend zu Grammatik und Satz, "
+                     "ohne Satzzeichen und ohne Erklaerung im Feld 'answer'.\n")
 
     elif "Zuordnung" in q_type:
         items = data.get("items", [])
