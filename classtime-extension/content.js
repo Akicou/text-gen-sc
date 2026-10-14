@@ -685,6 +685,7 @@
 
       case 'Multiple Choice':
         result.type = 'Multiple Choice';
+        result.multi = true;   // checkboxes: without this the server prompts "exactly ONE is correct"
         result.options = (data.options || []).map(opt => ({
           text: opt.text || '',
           correct: false,
