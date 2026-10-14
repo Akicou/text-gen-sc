@@ -5,6 +5,7 @@
   window.__classtimeAILoaded = true;
 
   const DEBUG_PREFIX = '[CTQ]';
+  const INSTANCE_ID = String(Math.random());
 
   function log(...args) {
     console.log(DEBUG_PREFIX, ...args);
@@ -85,6 +86,16 @@
   // Click a checkbox/radio choice - multiple aggressive approaches
   function clickChoiceByIndex(index, isRadio = false) {
     log(`clickChoiceByIndex: index=${index}, isRadio=${isRadio}`);
+
+    // Preferred: exactly one native click on the input. triggerClick fires several clicks, which is
+    // harmless for radios but toggles checkboxes an even number of times (= back to unchecked).
+    const input = document.querySelectorAll('[data-testid="choice-wrapper"]')[index]
+      ?.querySelector('input[type=checkbox], input[type=radio]');
+    if (input) {
+      if (!input.checked) input.click();
+      log(`Choice ${index} checked: ${input.checked}`);
+      return input.checked;
+    }
 
     const selectors = [
       // Direct choice wrapper approach
@@ -282,6 +293,9 @@
   function fillOpenText(text) {
     log(`fillOpenText: "${text.substring(0, 50)}..."`);
 
+    const slate = document.querySelector('[data-testid="essay-editor-wrapper"] [data-testid="slate-content-editable"]');
+    if (slate) return fillSlateEditor(slate, text);
+
     const textarea = document.querySelector('[data-testid="student-answer-area"] textarea:not([aria-hidden="true"])');
     if (!textarea) {
       logError('No textarea found');
@@ -341,6 +355,32 @@
     textarea.value = text;
     textarea.focus();
     log('Textarea value set');
+    return true;
+  }
+
+  // Essay ("Langer Text") questions use a Slate rich-text editor. Setting DOM text or execCommand
+  // doesn't reach Slate's state; beforeinput events (what typing produces) do. Paste is blocked there.
+  function fillSlateEditor(editable, text) {
+    log('fillSlateEditor');
+    editable.focus();
+    const range = document.createRange();
+    range.selectNodeContents(editable);
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    const input = (inputType, data = null) => editable.dispatchEvent(
+      new InputEvent('beforeinput', { inputType, data, bubbles: true, cancelable: true }));
+
+    // Slate picks up the DOM selection on 'selectionchange', which fires async - wait one tick.
+    setTimeout(() => {
+      text.split('\n').forEach((line, i) => {
+        if (i > 0) input('insertParagraph');
+        if (line) input('insertText', line);
+      });
+      log('Slate editor filled');
+    }, 100);
     return true;
   }
 
@@ -505,7 +545,7 @@
       ['categorizer', document.querySelector('[data-testid="student-categorizer-answers-form"]')],
       ['cloze', document.querySelector('[data-testid="highlight-text-preview"]')],
       ['sorter', document.querySelector('[data-testid="student-sorter-choice"]')],
-      ['opentext', document.querySelector('[data-testid="student-answer-area"]')],
+      ['opentext', document.querySelector('[data-testid="student-answer-area"], [data-testid="essay-editor-wrapper"]')],
     ];
 
     for (const [type, el] of tests) {
@@ -1140,10 +1180,13 @@
     }
     log('Found answer wrapper');
 
-    // Check if already injected
-    if (answerWrapper.parentElement.querySelector('.ctq-btn-group')) {
-      log('Buttons already injected');
-      return;
+    // Check if already injected. Groups left behind by a previous script instance (extension
+    // reloaded without a page reload) keep their DOM but lose their click handlers - replace them.
+    const existing = answerWrapper.parentElement.querySelector('.ctq-btn-group');
+    if (existing?.dataset.ctqInstance === INSTANCE_ID) return;
+    if (existing) {
+      log('Replacing stale buttons from a previous extension instance');
+      existing.remove();
     }
 
     log('Creating buttons...');
@@ -1151,6 +1194,7 @@
     // Create button group with inline styles (more reliable than CSS file)
     const group = document.createElement('div');
     group.className = 'ctq-btn-group';
+    group.dataset.ctqInstance = INSTANCE_ID;
     group.style.cssText = `
       display: flex;
       gap: 8px;

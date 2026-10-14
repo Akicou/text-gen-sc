@@ -7,6 +7,7 @@
 
   const BTN_CLASS = 'mqe-extract-btn';
   const MODAL_ID = 'mqe-modal';
+  const INSTANCE_ID = String(Math.random());
 
   // ---------- Helpers ----------
 
@@ -576,10 +577,14 @@
   function addButtonTo(qEl) {
     const infoEl = qEl.querySelector(':scope > .info');
     if (!infoEl) return;
-    if (infoEl.parentNode.querySelector('.mqe-btn-row')) return;
+    // Rows from a previous script instance (extension reloaded, page not) have dead handlers - replace them.
+    const existing = infoEl.parentNode.querySelector('.mqe-btn-row');
+    if (existing?.dataset.mqeInstance === INSTANCE_ID) return;
+    existing?.remove();
 
     const row = document.createElement('div');
     row.className = 'mqe-btn-row';
+    row.dataset.mqeInstance = INSTANCE_ID;
 
     const btn = document.createElement('button');
     btn.type = 'button';

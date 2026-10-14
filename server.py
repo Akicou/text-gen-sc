@@ -288,10 +288,13 @@ def build_prompt(data):
         for i, item in enumerate(items, 1):
             base += f"  {i}. {item.get('statement', '')}\n"
 
-    elif q_type.lower() in ("freitext", "free text") or "freitext" in q_type.lower():
+    elif "freitext" in q_type.lower() or "free text" in q_type.lower() or "open text" in q_type.lower():
         base += (
-            "Dies ist eine Freitext-Frage. Schreibe eine vollstaendige, sachlich richtige "
-            "Antwort als zusammenhaengenden Text. Setze die fertige Antwort in das Feld 'answer'.\n"
+            "Dies ist eine Freitext-Frage. Beantworte genau die gestellte Frage kurz und sachlich "
+            "richtig, in 1 bis 3 Saetzen (nur wenn die Frage ausdruecklich mehr verlangt, etwas "
+            "laenger). Schreibe einfachen Fliesstext ohne Markdown: keine Sternchen (* oder **), "
+            "keine Gedankenstriche und keine Bindestriche mitten im Satz, keine Semikolons (;). "
+            "Verwende stattdessen Kommas oder Punkte. Setze die fertige Antwort in das Feld 'answer'.\n"
         )
 
     elif "short" in q_type.lower() or "kurz" in q_type.lower() or "numeric" in q_type.lower():
@@ -305,6 +308,18 @@ def build_prompt(data):
 
 
 # ---------- AI query ----------
+
+
+def clean_answer_text(text):
+    """Enforce the answer style even if the model ignores the prompt: no asterisks, no semicolons,
+    no em/en dashes and no spaced hyphens mid-sentence. Compound words (WG-Konto) stay."""
+    text = str(text).replace("*", "")
+    # "a; b" -> "a. B" (semicolon becomes a full stop, next word capitalized)
+    text = re.sub(r"\s*;\s*(\w?)", lambda m: ". " + m.group(1).upper(), text)
+    text = re.sub(r"\s*[—–]\s*", ", ", text)    # em dash / en dash
+    text = re.sub(r"(?<=\S) +- +(?=\S)", ", ", text)        # "Wort - Wort"
+    text = re.sub(r",\s*([,.;:!?])", r"\1", text)           # ", ." -> "."
+    return re.sub(r"[ \t]{2,}", " ", text).strip()
 
 
 def normalize_result(question_type, raw):
@@ -399,10 +414,10 @@ def normalize_result(question_type, raw):
 
     # Free-text and short-answer questions -> { answer, explanation }
     lowered = question_type.lower()
-    if any(k in lowered for k in ("freitext", "free", "short", "kurz", "numeric", "number", "zahl")):
+    if any(k in lowered for k in ("freitext", "free", "short", "kurz", "numeric", "number", "zahl", "text")):
         return {
-            "answer": (raw.get("answer") or raw.get("text") or raw.get("response")
-                       or raw.get("solution") or raw.get("value") or ""),
+            "answer": clean_answer_text(raw.get("answer") or raw.get("text") or raw.get("response")
+                                        or raw.get("solution") or raw.get("value") or ""),
             "explanation": (raw.get("explanation") or raw.get("reasoning")
                             or raw.get("reason") or ""),
         }
