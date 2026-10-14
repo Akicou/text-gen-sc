@@ -262,27 +262,31 @@
       }
     }
 
-    // Fallback: find by table position
-    const table = document.querySelector('table[role="grid"]');
-    if (!table) {
-      logError('No categorizer table found');
-      return false;
-    }
-
-    const headers = Array.from(table.querySelectorAll('[data-testid="category-header-cell"]'));
-    const rows = Array.from(table.querySelectorAll('[data-testid="question-answer-row"]'));
-
+    // Fallback: find by table position (row = TH item + one TD per category; inputs are
+    // radios when each item has exactly one category, checkboxes otherwise).
+    const headers = Array.from(document.querySelectorAll('[data-testid="category-header-cell"]'));
+    const rows = Array.from(document.querySelectorAll('[data-testid="question-answer-row"]'));
     log(`Table has ${headers.length} headers, ${rows.length} rows`);
 
-    const catIdx = headers.findIndex(th => norm(th.textContent) === catNorm);
-    const rowIdx = rows.findIndex(tr => norm(tr.querySelector('th')?.textContent) === itemNorm);
-
+    const fuzzyIndex = (list, target, textOf) => {
+      const exact = list.findIndex(el => textOf(el) === target);
+      return exact >= 0 ? exact : list.findIndex(el => {
+        const t = textOf(el);
+        return t && (t.includes(target) || target.includes(t));
+      });
+    };
+    const catIdx = fuzzyIndex(headers, catNorm, th => norm(th.textContent));
+    const rowIdx = fuzzyIndex(rows, itemNorm, tr => norm(tr.querySelector('th')?.textContent));
     log(`Category index: ${catIdx}, Row index: ${rowIdx}`);
 
     if (catIdx >= 0 && rowIdx >= 0) {
-      const cell = rows[rowIdx].querySelectorAll('td')[catIdx];
-      const cb = cell?.querySelector('input[type=checkbox]');
-      if (clickCheckboxOnce(cb, 'categorizer checkbox (fallback)')) return true;
+      const input = rows[rowIdx].querySelectorAll('td')[catIdx]
+        ?.querySelector('input[type=radio], input[type=checkbox]');
+      if (input) {
+        if (!input.checked) input.click();   // one native click; repeated clicks toggle checkboxes off
+        log(`Categorizer "${itemText}" -> "${categoryText}" checked: ${input.checked}`);
+        return input.checked;
+      }
     }
 
     logError('Categorizer cell not found');
