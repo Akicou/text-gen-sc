@@ -168,6 +168,23 @@ SCHEMAS = {
             },
         },
     },
+    "Sorter": {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "sorter_answer",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "properties": {
+                    # Item texts exactly as given, in the correct order (first = top).
+                    "order": {"type": "array", "items": {"type": "string"}},
+                    "explanation": {"type": "string"},
+                },
+                "required": ["order", "explanation"],
+                "additionalProperties": False,
+            },
+        },
+    },
     "Lueckentext": {
         "type": "json_schema",
         "json_schema": {
@@ -230,6 +247,8 @@ def get_schema_for_type(question_type):
         return SCHEMAS["K-Prime"]
     elif question_type == "Multiple Choice":
         return SCHEMAS["Multiple Choice"]
+    elif question_type == "Sorter":
+        return SCHEMAS["Sorter"]
     elif "Lueckentext" in question_type or "ückentext" in question_type or question_type == "Gap Select":
         return SCHEMAS["Lueckentext"]
     elif "Zuordnung" in question_type or question_type == "Match":
@@ -272,6 +291,14 @@ def build_prompt(data):
                  if multi else "Genau EINE Antwort ist richtig.") + "\n"
         base += ("Gib als correctAnswers die 1-basierten Indices ALLER richtigen Optionen an. "
                  "Beispiel: Wenn Antwort 1 richtig ist, muss correctAnswers = [1] sein, niemals [] oder 0.\n")
+
+    elif q_type == "Sorter":
+        base += "Elemente (aktuelle, zufaellige Reihenfolge):\n"
+        for item in data.get("items", []):
+            text = item.get("text", "") if isinstance(item, dict) else str(item)
+            base += f"  - {text}\n"
+        base += ("Bringe ALLE Elemente in die richtige Reihenfolge. Gib sie in 'order' zurueck, "
+                 "jeden Text exakt so wie oben geschrieben, das erste Element zuoberst.\n")
 
     elif "ückentext" in q_type or "Lueckentext" in q_type:
         gaps = data.get("gaps", [])

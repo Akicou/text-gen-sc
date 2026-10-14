@@ -384,99 +384,47 @@
     return true;
   }
 
-  // Aggressive sorter reordering - try multiple methods to actually reorder items
+  // Sorter questions use dnd-kit. Moving DOM nodes doesn't change React state, but dnd-kit's
+  // keyboard sensor does: focus a draggable, Space = pick up, ArrowUp/Down = move, Space = drop.
   function reorderSorter(targetOrder) {
     log(`reorderSorter: ${targetOrder.length} items in target order`);
-    const cards = Array.from(document.querySelectorAll('[data-testid="student-sorter-choice"]'));
-    const container = cards[0]?.closest('[data-testid="questions-answers-list"], .css-hqx06x-sorterChoicesList, .sorterChoicesList');
-
-    if (!container || cards.length === 0) {
-      log('No cards or container found for reordering');
+    const norm = s => clean(String(s || '')).toLowerCase();
+    const draggables = () => Array.from(document.querySelectorAll('[aria-roledescription="draggable"]'));
+    const textOf = d => norm(getText(d.querySelector('[data-testid="student-sorter-choice-content"]') || d));
+    if (draggables().length === 0) {
+      log('No dnd-kit draggables found');
       return false;
     }
 
-    log(`Found ${cards.length} cards, container:`, container.className);
+    const matches = (cardText, target) => {
+      const t = norm(target);
+      return cardText === t || cardText.includes(t) || t.includes(cardText);
+    };
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const key = (code, key) => (document.activeElement || document.body).dispatchEvent(
+      new KeyboardEvent('keydown', { code, key, bubbles: true, cancelable: true }));
 
-    // Build array of (card, targetPosition) based on text matching
-    const cardTargets = cards.map(card => {
-      const text = getText(card.querySelector('[data-testid="student-sorter-choice-content"]') || card).toLowerCase();
-      // Find target position
-      let targetPos = targetOrder.findIndex(t =>
-        clean(t).toLowerCase().includes(text) || text.includes(clean(t).toLowerCase())
-      );
-      if (targetPos === -1) {
-        // Try partial matching
-        targetPos = targetOrder.findIndex(t => {
-          const cleanT = clean(t).toLowerCase();
-          const words = text.split(/\s+/);
-          return words.some(w => w.length > 3 && cleanT.includes(w));
-        });
-      }
-      return { card, text, targetPos: targetPos >= 0 ? targetPos : 999 };
-    }).sort((a, b) => a.targetPos - b.targetPos);
-
-    log('Card target positions:', cardTargets.map(c => `${c.text.substring(0,15)}->${c.targetPos}`));
-
-    // Method 1: Try dnd-kit activators (common in React apps)
-    for (const { card, targetPos } of cardTargets) {
-      const activator = card.querySelector('[data-dnd-kit-drag-handle]') || card;
-      try {
-        // Find dnd-kit context
-        const draggableId = card.getAttribute('data-dnd-kit-draggable-id');
-        if (draggableId) {
-          log(`Found dnd-kit draggable: ${draggableId}`);
-          // Try to trigger dnd-kit's internal state update
-          const dndEvent = new CustomEvent('dnd-kit dragStart', { bubbles: true, detail: { id: draggableId } });
-          activator.dispatchEvent(dndEvent);
+    (async () => {
+      for (let target = 0; target < targetOrder.length; target++) {
+        const items = draggables();
+        const from = items.findIndex((d, i) => i >= target && matches(textOf(d), targetOrder[target]));
+        if (from < 0) { logError('Sorter item not found:', targetOrder[target]); continue; }
+        if (from === target) continue;
+        log(`Moving "${targetOrder[target]}" from ${from + 1} to ${target + 1}`);
+        items[from].focus();
+        key('Space', ' ');
+        await sleep(150);
+        for (let s = 0; s < from - target; s++) {
+          key('ArrowUp', 'ArrowUp');
+          await sleep(200);   // dnd-kit measures layout between moves
         }
-      } catch (e) {
-        logError('dnd-kit method failed:', e);
+        key('Space', ' ');
+        await sleep(350);     // drop animation
       }
-    }
-
-    // Method 2: Direct DOM reordering (brute force)
-    try {
-      log('Attempting direct DOM reordering...');
-      // Clone cards in target order
-      const fragment = document.createDocumentFragment();
-      cardTargets.forEach(({ card }) => {
-        const clone = card.cloneNode(true);
-        fragment.appendChild(clone);
-      });
-
-      // Replace all cards with reordered clones
-      cardTargets.forEach(({ card }) => card.remove());
-
-      // Insert in correct order
-      const listContainer = container.querySelector('.css-hqx06x-sorterChoicesList, .sorterChoicesList') || container;
-      Array.from(fragment.children).forEach((clone, i) => {
-        listContainer.appendChild(clone);
-        log(`Repositioned item ${i + 1}`);
-      });
-
-      log('DOM reordering completed');
-      return true;
-    } catch (e) {
-      logError('Direct DOM reordering failed:', e);
-    }
-
-    // Method 3: Try React Fiber manipulation
-    try {
-      log('Trying React Fiber manipulation...');
-      const reactKey = Object.keys(container).find(k => k.startsWith('__reactFiber') || k.startsWith('__reactProps'));
-      if (reactKey) {
-        log('Found React internal key:', reactKey);
-        // Force React to re-render by dispatching events
-        container.dispatchEvent(new Event('input', { bubbles: true }));
-        container.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-    } catch (e) {
-      logError('React manipulation failed:', e);
-    }
-
-    return false;
+      log('Sorter final order:', draggables().map(textOf));
+    })();
+    return true;
   }
-
   // Annotate sorter items (drag-drop is too complex, just show hints)
   function annotateSorter(order) {
     log(`annotateSorter: ${order.length} items`);
