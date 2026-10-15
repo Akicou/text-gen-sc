@@ -11,11 +11,10 @@ try:
     from pynput import keyboard as pynput_keyboard
 except Exception:
     pynput_keyboard = None
-from openai import OpenAI
+import httpx
 import time
 import subprocess
 import json
-import requests
 import tkinter as tk
 from tkinter import messagebox
 import base64
@@ -119,7 +118,7 @@ def get_api_key(provider_id):
 def fetch_ollama_models():
     """Fetch available models from Ollama."""
     try:
-        resp = requests.get("http://localhost:11434/api/tags", timeout=5)
+        resp = httpx.get("http://localhost:11434/api/tags", timeout=5, verify=False)
         resp.raise_for_status()
         data = resp.json()
         return [m["name"] for m in data.get("models", [])]
@@ -131,7 +130,7 @@ def fetch_ollama_models():
 def fetch_lmstudio_models():
     """Fetch available models from LM Studio. Falls back to 'local-model'."""
     try:
-        resp = requests.get("http://localhost:1234/v1/models", timeout=5)
+        resp = httpx.get("http://localhost:1234/v1/models", timeout=5, verify=False)
         resp.raise_for_status()
         data = resp.json()
         models = [m["id"] for m in data.get("data", [])]
@@ -143,7 +142,7 @@ def fetch_lmstudio_models():
 def fetch_openrouter_models():
     """Fetch available models from OpenRouter."""
     try:
-        resp = requests.get("https://openrouter.ai/api/v1/models", timeout=10)
+        resp = httpx.get("https://openrouter.ai/api/v1/models", timeout=10, verify=False)
         resp.raise_for_status()
         data = resp.json()
         models = []
@@ -261,13 +260,23 @@ def get_context():
     return context
 
 
+def post_chat_completion(payload):
+    """POST a chat completion request to the selected provider (SSL verification disabled)."""
+    provider = PROVIDERS[selected_provider]
+    key = api_key if provider["needs_api_key"] else "not-needed"
+    response = httpx.post(
+        f"{provider['base_url'].rstrip('/')}/chat/completions",
+        headers={"Authorization": f"Bearer {key}"},
+        json=payload,
+        timeout=300,
+        verify=False,
+    )
+    response.raise_for_status()
+    return (response.json()["choices"][0]["message"]["content"] or "").strip()
+
+
 def query_ai(prompt):
     """Query the AI using the selected provider and model."""
-    provider = PROVIDERS[selected_provider]
-    client = OpenAI(
-        api_key=api_key if provider["needs_api_key"] else "not-needed",
-        base_url=provider["base_url"],
-    )
     context = get_context()
     system_prompt = (
         "You are a helpful assistant. "
@@ -277,9 +286,9 @@ def query_ai(prompt):
         "Keep responses clean, concise, and plainly formatted."
     )
     try:
-        response = client.chat.completions.create(
-            model=selected_model,
-            messages=[
+        return post_chat_completion({
+            "model": selected_model,
+            "messages": [
                 {"role": "system", "content": system_prompt},
                 {
                     "role": "user",
@@ -292,8 +301,7 @@ def query_ai(prompt):
             """,
                 },
             ],
-        )
-        return response.choices[0].message.content.strip()
+        })
     except Exception as e:
         print(f"Error querying AI: {e}")
         return ""
@@ -545,11 +553,6 @@ def image_to_base64(image):
 
 def query_ai_vision(image_base64, prompt):
     """Query the AI with a base64 image and text prompt using the vision API."""
-    provider = PROVIDERS[selected_provider]
-    client = OpenAI(
-        api_key=api_key if provider["needs_api_key"] else "not-needed",
-        base_url=provider["base_url"],
-    )
     context = get_context()
     system_prompt = (
         "You are a helpful assistant that analyzes images and text. "
@@ -559,9 +562,9 @@ def query_ai_vision(image_base64, prompt):
         "Keep responses clean, concise, and plainly formatted."
     )
     try:
-        response = client.chat.completions.create(
-            model=selected_model,
-            messages=[
+        return post_chat_completion({
+            "model": selected_model,
+            "messages": [
                 {"role": "system", "content": system_prompt},
                 {
                     "role": "user",
@@ -579,9 +582,8 @@ def query_ai_vision(image_base64, prompt):
                     ],
                 },
             ],
-            reasoning_effort="medium",
-        )
-        return response.choices[0].message.content.strip()
+            "reasoning_effort": "medium",
+        })
     except Exception as e:
         print(f"Error querying AI with vision: {e}")
         return ""
