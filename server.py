@@ -10,7 +10,6 @@ import os
 import re
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import httpx
-from openai import OpenAI
 
 PORT = 5923
 
@@ -491,9 +490,6 @@ def query_ai_structured(question_data):
         if not api_key:
             return {"error": f"Missing API key: {provider['env_key']}"}
 
-    client = OpenAI(api_key=api_key, base_url=provider["base_url"],
-                     http_client=httpx.Client(verify=False))
-
     context = get_context()
     q_type = question_data.get("type", "")
     prompt = build_prompt(question_data)
@@ -516,8 +512,9 @@ def query_ai_structured(question_data):
             f"Do NOT use any other field names. Do NOT wrap in markdown code blocks."
         )
 
+    content = ""
     try:
-        kwargs = {
+        payload = {
             "model": model,
             "messages": [
                 {"role": "system", "content": system_prompt + schema_hint},
@@ -529,10 +526,17 @@ def query_ai_structured(question_data):
         }
 
         if use_structured:
-            kwargs["response_format"] = schema
+            payload["response_format"] = schema
 
-        response = client.chat.completions.create(**kwargs)
-        content = response.choices[0].message.content.strip()
+        response = httpx.post(
+            f"{provider['base_url'].rstrip('/')}/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}"},
+            json=payload,
+            timeout=300,
+            verify=False,
+        )
+        response.raise_for_status()
+        content = (response.json()["choices"][0]["message"]["content"] or "").strip()
 
         if use_structured:
             raw = json.loads(content)
