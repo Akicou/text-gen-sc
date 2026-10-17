@@ -496,7 +496,7 @@
     const tests = [
       ['categorizer', document.querySelector('[data-testid="student-categorizer-answers-form"]')],
       ['cloze', document.querySelector('[data-testid="highlight-text-preview"]')],
-      ['fillgaps', document.querySelector('[data-testid="fitg-pointer-blank"]')],
+      ['fillgaps', document.querySelector('[data-testid="fitg-pointer-blank"], [data-testid="fitg-pointer-choice"]')],
       ['sorter', document.querySelector('[data-testid="student-sorter-choice"]')],
       ['opentext', document.querySelector('[data-testid="student-answer-area"], [data-testid="essay-editor-wrapper"]')],
     ];
@@ -608,21 +608,67 @@
     };
   }
 
-  // Free-text gaps ("Freitextlücke"): each gap is a textarea inside fitg-pointer-blank.
-  function extractFillGaps() {
+  // Lückentext gaps, in text order: free-text gaps ("Freitextlücke") are a textarea inside
+  // fitg-pointer-blank; option gaps ("Auswahlmöglichkeiten") are a button wrapping
+  // fitg-pointer-choice that opens an MUI menu (#gap-N-choices) with role=menuitem entries.
+  const GAP_SELECTOR = '[data-testid="fitg-pointer-blank"], [data-testid="fitg-pointer-choice"]';
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const isChoiceGap = el => el.dataset.testid === 'fitg-pointer-choice';
+
+  // The menu items only exist while the gap's menu is open.
+  async function openGapMenu(gapEl) {
+    (gapEl.closest('button') || gapEl.querySelector('button') || gapEl).click();
+    for (let i = 0; i < 20; i++) {
+      await sleep(50);
+      const items = document.querySelectorAll('[id^="gap-"][id$="-choices"] [role="menuitem"]');
+      if (items.length) return Array.from(items);
+    }
+    logError('Gap menu did not open');
+    return [];
+  }
+
+  function closeGapMenu() {
+    document.querySelector('[id^="gap-"][id$="-choices"] [role="menu"], [id^="gap-"][id$="-choices"]')
+      ?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
+  }
+
+  async function extractFillGaps() {
     const list = document.querySelector('[data-testid="questions-answers-list"]');
+    const gapEls = Array.from(list.querySelectorAll(GAP_SELECTOR));
+    const gaps = [];
+    for (const el of gapEls) {
+      if (!isChoiceGap(el)) { gaps.push({ options: [] }); continue; }
+      const options = (await openGapMenu(el)).map(getText);
+      closeGapMenu();
+      await sleep(150);
+      gaps.push({ options });
+    }
     const copy = list.cloneNode(true);
-    copy.querySelectorAll('[data-testid="fitg-pointer-blank"]').forEach((b, i) =>
-      b.replaceWith(` [Lücke ${i + 1}] `));
-    const gapCount = list.querySelectorAll('[data-testid="fitg-pointer-blank"]').length;
-    log(`extractFillGaps: ${gapCount} gaps`);
+    copy.querySelectorAll(GAP_SELECTOR).forEach((b, i) => b.replaceWith(` [Lücke ${i + 1}] `));
+    log(`extractFillGaps: ${gaps.length} gaps`, gaps);
     return {
       type: 'Fill Gaps',
       title: getQuestionTitle(),
       description: getQuestionDescription(),
       fullText: getText(copy),
-      gapCount
+      gaps
     };
+  }
+
+  async function fillChoiceGap(gapEl, text) {
+    const target = clean(text).toLowerCase();
+    const items = await openGapMenu(gapEl);
+    const texts = items.map(it => getText(it).toLowerCase());
+    let idx = texts.indexOf(target);
+    if (idx < 0) idx = texts.findIndex(t => t && (t.includes(target) || target.includes(t)));
+    if (idx < 0) {
+      logError('Gap option not found:', text, texts);
+      closeGapMenu();
+      return false;
+    }
+    items[idx].click();
+    await sleep(150);
+    return true;
   }
 
   // Set a React-controlled input/textarea value so React's onChange sees it.
@@ -633,7 +679,7 @@
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
-  function extractQuestion() {
+  async function extractQuestion() {
     log('=== extractQuestion called ===');
     const type = detectQuestionType();
     log('Question type:', type);
@@ -646,7 +692,7 @@
       case 'opentext': result = extractOpentext(); break;
       case 'sorter': result = extractSorter(); break;
       case 'cloze': result = extractCloze(); break;
-      case 'fillgaps': result = extractFillGaps(); break;
+      case 'fillgaps': result = await extractFillGaps(); break;
       default: result = { type: 'Unknown', title: getQuestionTitle() };
     }
 
@@ -717,7 +763,7 @@
         // Server treats "...ückentext..." as gap questions; empty options = free input.
         result.type = 'Lückentext (Freitext)';
         result.questionText += `\n\nText:\n${data.fullText}`;
-        result.gaps = Array.from({ length: data.gapCount }, (_, i) => ({ index: i + 1, options: [] }));
+        result.gaps = (data.gaps || []).map((g, i) => ({ index: i + 1, options: g.options }));
         break;
 
       case 'Sorter':
@@ -914,14 +960,22 @@
         break;
       }
       case 'Fill Gaps': {
-        const blanks = document.querySelectorAll('[data-testid="fitg-pointer-blank"]');
-        (result.fills || []).forEach(({ index, text }) => {
-          const ta = blanks[index]?.querySelector('textarea, input');
-          if (!ta || !text) return;
-          setReactValue(ta, text);
-          log(`Gap ${index + 1} = "${text}"`);
-          filled++;
-        });
+        const gapEls = document.querySelectorAll(GAP_SELECTOR);
+        const fills = (result.fills || []).filter(({ index, text }) => gapEls[index] && text);
+        // Option gaps open one menu at a time, so fill sequentially.
+        (async () => {
+          for (const { index, text } of fills) {
+            const el = gapEls[index];
+            if (isChoiceGap(el)) {
+              await fillChoiceGap(el, text);
+            } else {
+              const ta = el.querySelector('textarea, input');
+              if (ta) setReactValue(ta, text);
+            }
+            log(`Gap ${index + 1} = "${text}"`);
+          }
+        })();
+        filled = fills.length;
         break;
       }
       case 'Cloze': {
@@ -943,6 +997,26 @@
 
     log('autoFill completed, filled:', filled);
     return filled;
+  }
+
+  // ========== SCREENSHOT ==========
+
+  // Screenshot of the visible page (extension UI hidden), sent with the extracted data.
+  // ponytail: viewport only, long questions scrolled out of view are covered by the extracted text.
+  async function solveWithScreenshot(data) {
+    const ui = document.querySelectorAll(`#${MODAL_ID}, .ctq-btn-group`);
+    ui.forEach(el => { el.style.visibility = 'hidden'; });
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    let screenshot = null;
+    try {
+      screenshot = await browser.runtime.sendMessage({ action: 'capture' });
+    } catch (err) {
+      logError('Screenshot failed, sending text only:', err);
+    } finally {
+      ui.forEach(el => { el.style.visibility = ''; });
+    }
+    log('Screenshot captured:', !!screenshot);
+    return browser.runtime.sendMessage({ action: 'solve', data: { ...toMoodleFormat(data), screenshot } });
   }
 
   // ========== UI HELPERS ==========
@@ -971,6 +1045,10 @@
       data.groups.forEach(g => {
         lines.push(`Gap ${g.groupIndex + 1}: ${g.choices.join(' / ')}`);
       });
+    }
+    if (data.type === 'Fill Gaps') {
+      lines.push(`Text: ${data.fullText}`, '--- Gaps ---');
+      data.gaps.forEach((g, i) => lines.push(`Lücke ${i + 1}: ${g.options.length ? g.options.join(' / ') : '(free text)'}`));
     }
     if (data.audioSrc) lines.push(`Audio: ${data.audioSrc}`);
 
@@ -1118,9 +1196,7 @@
       log('AI Solve button clicked');
 
       try {
-        // Transform to Moodle-compatible format for the backend
-        const moodleData = toMoodleFormat(data);
-        const reply = await browser.runtime.sendMessage({ action: 'solve', data: moodleData });
+        const reply = await solveWithScreenshot(data);
         log('AI reply received:', reply);
 
         if (!reply?.ok) throw new Error(reply?.error || 'No response');
@@ -1261,11 +1337,8 @@
       aiBtn.classList.add('ctq-loading');
 
       try {
-        const data = extractQuestion();
-        const moodleData = toMoodleFormat(data);
-        log('Sending to background script (Moodle format):', moodleData);
-
-        const reply = await browser.runtime.sendMessage({ action: 'solve', data: moodleData });
+        const data = await extractQuestion();
+        const reply = await solveWithScreenshot(data);
         log('Background reply:', reply);
 
         if (!reply?.ok) throw new Error(reply?.error || 'No response');
@@ -1286,10 +1359,10 @@
       }
     };
 
-    showBtn.onclick = () => {
+    showBtn.onclick = async () => {
       log('Show button clicked');
       try {
-        const data = extractQuestion();
+        const data = await extractQuestion();
         showModal(formatExtracted(data), data);
       } catch (err) {
         logError('Show button error:', err);

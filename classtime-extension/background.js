@@ -1,6 +1,9 @@
 const SOLVE_URL = 'http://localhost:5923/solve';
 
-browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.action === 'capture') {
+    return browser.tabs.captureVisibleTab(sender.tab.windowId, { format: 'jpeg', quality: 85 });
+  }
   if (msg.action !== 'solve') return;
 
   fetch(SOLVE_URL, {

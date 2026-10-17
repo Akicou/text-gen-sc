@@ -308,10 +308,13 @@ def build_prompt(data):
                 base += f"  Luecke {g.get('index', '?')}: Optionen = {', '.join(opts_list)}\n"
             else:
                 base += f"  Luecke {g.get('index', '?')}: freie Eingabe\n"
-        if gaps and not any(g.get("options") for g in gaps):
-            base += ("Die Luecken sind im Text als [Luecke N] markiert. Gib pro Luecke nur das "
+        if any(not g.get("options") for g in gaps):
+            base += ("Die Luecken sind im Text als [Luecke N] markiert. Gib bei freier Eingabe nur das "
                      "fehlende Wort oder die kurze Wortgruppe an, passend zu Grammatik und Satz, "
                      "ohne Satzzeichen und ohne Erklaerung im Feld 'answer'.\n")
+        if any(g.get("options") for g in gaps):
+            base += ("Gib bei Luecken mit Optionen genau eine der Optionen an, exakt so geschrieben "
+                     "wie oben, passend zum Satz.\n")
 
     elif "Zuordnung" in q_type:
         items = data.get("items", [])
@@ -512,16 +515,24 @@ def query_ai_structured(question_data):
             f"Do NOT use any other field names. Do NOT wrap in markdown code blocks."
         )
 
+    user_content = f"{prompt}\n\n<context>\n{context}\n</context>"
+    screenshot = question_data.get("screenshot")
+    if screenshot:
+        # Needs a vision-capable model. The extracted text stays in the prompt so the answer
+        # still uses the exact option indices / item texts the extension fills in.
+        user_content = [
+            {"type": "text", "text": user_content + "\n\nEin Screenshot der Frage ist beigefuegt. "
+                                                    "Nutze ihn fuer Bilder, Tabellen und Layout."},
+            {"type": "image_url", "image_url": {"url": screenshot}},
+        ]
+
     content = ""
     try:
         payload = {
             "model": model,
             "messages": [
                 {"role": "system", "content": system_prompt + schema_hint},
-                {
-                    "role": "user",
-                    "content": f"{prompt}\n\n<context>\n{context}\n</context>",
-                },
+                {"role": "user", "content": user_content},
             ],
         }
 

@@ -30,3 +30,7 @@ Desktop.ini
 # Build artifacts
 *.exe
 *.spec
+
+# AI tooling
+.claude/
+CLAUDE.md
